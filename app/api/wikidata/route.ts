@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCacheDb, isSqliteBusyError } from "@/lib/db";
+import { getCacheDb } from "@/lib/db";
+import { errorResponse, fetchWithTimeout } from "@/lib/api-utils";
 
 interface WikidataResult {
   wikidata_id: string | null;
@@ -28,10 +29,23 @@ interface WikidataCacheRow {
   cached_at: string;
 }
 
+/**
+ * Sanitize ORCID for safe use in SPARQL query.
+ * ORCID format: 0000-0000-0000-0000 (with optional X at end)
+ * This function ensures only valid ORCID characters are included.
+ */
+function sanitizeOrcid(orcid: string): string {
+  // Remove URL prefix if present
+  const cleaned = orcid.replace(/^https?:\/\/orcid\.org\//, "");
+  // Only allow digits, hyphens, and X (for checksum)
+  return cleaned.replace(/[^0-9\-X]/gi, '');
+}
+
 // SPARQL query to get person info by ORCID
 // Wikidata properties: P496=ORCID, P569=birth, P570=death, P18=image, P1153=Scopus, P1053=ResearcherID, P2002=Twitter
 function buildSparqlQuery(orcid: string): string {
-  const cleanOrcid = orcid.replace(/^https?:\/\/orcid\.org\//, "");
+  // Sanitize ORCID to prevent SPARQL injection
+  const cleanOrcid = sanitizeOrcid(orcid);
 
   return `
     SELECT ?item ?itemLabel ?itemDescription ?birthDate ?deathDate ?image ?article ?scopusId ?researcherId ?twitterUsername WHERE {
@@ -138,12 +152,12 @@ async function fetchFromWikidata(orcid: string): Promise<WikidataResult> {
   const query = buildSparqlQuery(orcid);
   const endpoint = "https://query.wikidata.org/sparql";
 
-  const response = await fetch(`${endpoint}?query=${encodeURIComponent(query)}`, {
+  const response = await fetchWithTimeout(`${endpoint}?query=${encodeURIComponent(query)}`, {
     headers: {
       "Accept": "application/sparql-results+json",
       "User-Agent": "SciSciNet-Dashboard/1.0 (https://metascienceobservatory.org; contact@metascienceobservatory.org)",
     },
-  });
+  }, 10000);
 
   if (!response.ok) {
     throw new Error(`Wikidata API error: ${response.status}`);
@@ -239,36 +253,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ ...result, fromCache: false });
   } catch (error) {
-    console.error("Wikidata lookup error:", error);
-
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    const stackTrace = error instanceof Error ? error.stack : String(error);
-    const errorCode =
-      error instanceof Error && "code" in error
-        ? (error as { code: string }).code
-        : undefined;
-
-    if (isSqliteBusyError(error)) {
-      return NextResponse.json(
-        {
-          error: "Database is temporarily busy",
-          details:
-            "The database is currently being updated (e.g., creating indexes). Please try again in a few moments.",
-          code: "SQLITE_BUSY",
-          stack: stackTrace,
-        },
-        { status: 503 }
-      );
-    }
-
-    return NextResponse.json(
-      {
-        error: "Failed to fetch Wikidata info",
-        details: errorMessage,
-        code: errorCode,
-        stack: stackTrace,
-      },
-      { status: 500 }
-    );
+    return errorResponse(error, "wikidata");
   }
 }

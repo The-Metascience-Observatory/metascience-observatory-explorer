@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCacheDb } from "@/lib/db";
+import { fetchWithTimeout } from "@/lib/api-utils";
 
 interface TweetEmbedCache {
   tweet_url: string;
@@ -97,11 +98,11 @@ export async function GET(request: NextRequest) {
     // Fetch from Twitter oEmbed API (no auth required)
     const oembedUrl = `https://publish.twitter.com/oembed?url=${encodeURIComponent(normalizedUrl)}&omit_script=true&hide_thread=true`;
 
-    const response = await fetch(oembedUrl, {
+    const response = await fetchWithTimeout(oembedUrl, {
       headers: {
         "User-Agent": "SciSciNet-Dashboard/1.0",
       },
-    });
+    }, 10000);
 
     if (!response.ok) {
       // Tweet might be deleted or protected
@@ -171,9 +172,9 @@ export async function POST(request: NextRequest) {
 
       try {
         const oembedUrl = `https://publish.twitter.com/oembed?url=${encodeURIComponent(normalizedUrl)}&omit_script=true&hide_thread=true`;
-        const response = await fetch(oembedUrl, {
+        const response = await fetchWithTimeout(oembedUrl, {
           headers: { "User-Agent": "SciSciNet-Dashboard/1.0" },
-        });
+        }, 10000);
 
         if (!response.ok) {
           saveToCache(cacheDb, normalizedUrl, null, null);

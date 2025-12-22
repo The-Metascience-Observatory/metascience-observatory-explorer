@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPapersExtraDb } from "@/lib/db";
+import { errorResponse } from "@/lib/api-utils";
 
 interface NewsfeedRow {
   url: string;
@@ -120,10 +121,6 @@ export async function GET(
       })),
     });
   } catch (error) {
-    console.error("Error fetching paper extra data:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch paper extra data" },
-      { status: 500 }
-    );
+    return errorResponse(error, "papers/[paperid]/extra");
   }
 }

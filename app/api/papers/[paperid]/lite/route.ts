@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPapersExtraDb, getDb } from "@/lib/db";
+import { errorResponse } from "@/lib/api-utils";
 
 interface PaperCoreRow {
   paperid: string;
@@ -32,16 +33,6 @@ interface PaperSourceRow {
   is_oa: number | null;
   version: string | null;
   license: string | null;
-}
-
-interface FieldInfo {
-  fieldid: string;
-  name: string;
-}
-
-interface SourceInfo {
-  sourceid: string;
-  name: string;
 }
 
 // Helper to check if a table exists
@@ -224,10 +215,6 @@ export async function GET(
       isLite: true, // Flag to indicate this is lite data
     });
   } catch (error) {
-    console.error("Error fetching lite paper data:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch lite paper data" },
-      { status: 500 }
-    );
+    return errorResponse(error, "papers/[paperid]/lite");
   }
 }

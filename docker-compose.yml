@@ -1,0 +1,35 @@
+services:
+  sciscinet-dashboard:
+    build: .
+    container_name: sciscinet-dashboard
+    restart: unless-stopped
+    # Use userland-proxy=false mode via extra_hosts
+    ports:
+      - "3000:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      # Mount data directory (needs write access for cache.db)
+      - ./data:/app/data
+    environment:
+      - NODE_ENV=production
+    # Resource limits to prevent DoS
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2'
+        reservations:
+          memory: 512M
+    # Drop all Linux capabilities - container doesn't need any
+    cap_drop:
+      - ALL
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    # Temp filesystem for /tmp
+    tmpfs:
+      - /tmp:size=100M,mode=1777
+
+# NOTE: Run cloudflared outside Docker for simpler credential management:
+#   cloudflared tunnel run sciscinet-dashboard

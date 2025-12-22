@@ -31,4 +31,10 @@
 body {
   background: var(--background);
   color: var(--foreground);
+  overflow-x: hidden;
+}
+
+/* Prevent horizontal overflow on mobile */
+main {
+  overflow-x: hidden;
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb, isSqliteBusyError } from "@/lib/db";
+import { getDb } from "@/lib/db";
+import { errorResponse, parsePagination } from "@/lib/api-utils";
 
 interface CountryStats {
   funder_count: number;
@@ -28,9 +29,7 @@ export async function GET(
 ) {
   try {
     const { countryCode } = await params;
-    const searchParams = request.nextUrl.searchParams;
-    const offset = parseInt(searchParams.get("offset") || "0", 10);
-    const limit = parseInt(searchParams.get("limit") || String(DEFAULT_LIMIT), 10);
+    const { offset, limit } = parsePagination(request.nextUrl.searchParams, { limit: DEFAULT_LIMIT });
 
     const db = getDb();
 
@@ -104,33 +103,6 @@ export async function GET(
       limit,
     });
   } catch (error) {
-    console.error("Error fetching country funders:", error);
-
-    const stackTrace = error instanceof Error ? error.stack : String(error);
-    const errorCode =
-      error instanceof Error && "code" in error
-        ? (error as { code: string }).code
-        : undefined;
-
-    if (isSqliteBusyError(error)) {
-      return NextResponse.json(
-        {
-          error: "Database is temporarily busy",
-          code: "SQLITE_BUSY",
-          stack: stackTrace,
-        },
-        { status: 503 }
-      );
-    }
-
-    return NextResponse.json(
-      {
-        error: "Failed to fetch country funders",
-        details: error instanceof Error ? error.message : "Unknown error",
-        code: errorCode,
-        stack: stackTrace,
-      },
-      { status: 500 }
-    );
+    return errorResponse(error, "funders/country/[countryCode]");
   }
 }

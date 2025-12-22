@@ -1,11 +1,8 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import Image from "next/image";
+import Link from "next/link";
+import { MobileNav } from "@/components/MobileNav";
 import "./globals.css";
-
-const inter = Inter({
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: "The Metascience Observatory: SciSciNet-V2 Explorer",
@@ -19,35 +16,38 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.className} antialiased min-h-screen bg-white`}>
-        <header className="border-b bg-white">
+      <body className="font-sans antialiased min-h-screen bg-white">
+        <header className="border-b bg-white relative">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between py-3">
-              <a href="/" className="flex items-center gap-3">
+              <Link href="/" className="flex items-center gap-2 sm:gap-3 min-w-0">
                 <Image
                   src="/assets/globe.svg"
                   alt="Globe"
-                  width={40}
-                  height={40}
+                  width={32}
+                  height={32}
+                  className="flex-shrink-0 sm:w-10 sm:h-10"
                 />
-                <span className="font-bold text-xl sm:text-2xl">
-                  The Metascience Observatory: SciSciNet-V2 Explorer
+                <span className="font-bold text-sm sm:text-xl md:text-2xl truncate">
+                  <span className="sm:hidden">SciSciNet Explorer</span>
+                  <span className="hidden sm:inline">The Metascience Observatory: SciSciNet-V2 Explorer</span>
                 </span>
-              </a>
+              </Link>
               <nav className="hidden md:flex items-center gap-6 text-sm">
-                <a href="/" className="hover:text-gray-600">
+                <Link href="/" className="hover:text-gray-600">
                   Search
-                </a>
-                <a href="/fields" className="hover:text-gray-600">
+                </Link>
+                <Link href="/fields" className="hover:text-gray-600">
                   Field Explorer
-                </a>
-                <a href="/funders-map" className="hover:text-gray-600">
+                </Link>
+                <Link href="/funders-map" className="hover:text-gray-600">
                   Funders Map
-                </a>
+                </Link>
                 <a href="https://metascienceobservatory.org" className="hover:text-gray-600">
                   Metascience Observatory
                 </a>
               </nav>
+              <MobileNav />
             </div>
           </div>
         </header>

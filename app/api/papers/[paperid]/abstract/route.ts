@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAbstractsDb } from "@/lib/db";
+import { errorResponse } from "@/lib/api-utils";
 
 interface AbstractRow {
   paperid: string;
@@ -43,10 +44,6 @@ export async function GET(
       language: row.language,
     });
   } catch (error) {
-    console.error("Error fetching abstract:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch abstract" },
-      { status: 500 }
-    );
+    return errorResponse(error, "papers/[paperid]/abstract");
   }
 }

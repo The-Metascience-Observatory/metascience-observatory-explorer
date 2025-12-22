@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb, isSqliteBusyError } from "@/lib/db";
+import { getDb } from "@/lib/db";
+import { errorResponse, validateQueryLength } from "@/lib/api-utils";
 import type { FunderSearchItem } from "@/lib/types";
 
 /**
@@ -42,30 +43,13 @@ export async function GET(request: NextRequest) {
         message: "Use ?q=search_term to search funders"
       });
     } catch (error) {
-      const stackTrace = error instanceof Error ? error.stack : String(error);
-      const errorCode =
-        error instanceof Error && "code" in error
-          ? (error as { code: string }).code
-          : undefined;
-
-      if (isSqliteBusyError(error)) {
-        return NextResponse.json(
-          {
-            error: "Database is temporarily busy",
-            details: "The database is currently being updated. Please try again in a few moments.",
-            code: "SQLITE_BUSY",
-            stack: stackTrace,
-          },
-          { status: 503 }
-        );
-      }
-
-      return NextResponse.json(
-        { error: "Database not available", details: error instanceof Error ? error.message : "Unknown error", code: errorCode, stack: stackTrace },
-        { status: 500 }
-      );
+      return errorResponse(error, "funders/search metadata");
     }
   }
+
+  // Validate query length (prevent DoS with extremely long queries)
+  const lengthError = validateQueryLength(query, 200);
+  if (lengthError) return lengthError;
 
   // Require at least 2 characters
   if (query.length < 2) {
@@ -106,29 +90,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ results });
   } catch (error) {
-    console.error("Funder search error:", error);
-
-    const stackTrace = error instanceof Error ? error.stack : String(error);
-    const errorCode =
-      error instanceof Error && "code" in error
-        ? (error as { code: string }).code
-        : undefined;
-
-    if (isSqliteBusyError(error)) {
-      return NextResponse.json(
-        {
-          error: "Database is temporarily busy",
-          details: "The database is currently being updated. Please try again in a few moments.",
-          code: "SQLITE_BUSY",
-          stack: stackTrace,
-        },
-        { status: 503 }
-      );
-    }
-
-    return NextResponse.json(
-      { error: "Search failed", details: error instanceof Error ? error.message : "Unknown error", code: errorCode, stack: stackTrace },
-      { status: 500 }
-    );
+    return errorResponse(error, "funders/search");
   }
 }

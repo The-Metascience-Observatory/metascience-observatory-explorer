@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb, isSqliteBusyError } from "@/lib/db";
+import { getDb } from "@/lib/db";
+import { errorResponse, validateQueryLength } from "@/lib/api-utils";
 import type { PersonSearchItem } from "@/lib/types";
+
+/**
+ * Sanitize a word for FTS5 query.
+ * FTS5 special chars: " * - ^ ( ) : AND OR NOT NEAR
+ * We strip these to prevent injection attacks.
+ */
+function sanitizeFtsWord(word: string): string {
+  // Only keep alphanumeric characters and common name characters (apostrophe, period)
+  // This prevents any FTS5 syntax injection
+  return word.replace(/[^a-zA-Z0-9'.]/g, '').trim();
+}
 
 /**
  * Build FTS5 query from user input.
@@ -17,10 +29,16 @@ function buildFtsQuery(query: string): string {
     // Handle hyphenated names: "fernandez-serra" -> fernandez OR serra
     if (word.includes('-')) {
       const parts = word.split('-').filter(p => p.length > 0);
-      return parts.map(p => `"${p}"*`).join(' ');
+      return parts
+        .map(p => sanitizeFtsWord(p))
+        .filter(p => p.length > 0)
+        .map(p => `"${p}"*`)
+        .join(' ');
     }
-    return `"${word}"*`;
-  }).join(' ');
+    const sanitized = sanitizeFtsWord(word);
+    if (!sanitized) return '';
+    return `"${sanitized}"*`;
+  }).filter(w => w.length > 0).join(' ');
 }
 
 /**
@@ -145,30 +163,13 @@ export async function GET(request: NextRequest) {
         message: "Use ?q=search_term to search authors"
       });
     } catch (error) {
-      const stackTrace = error instanceof Error ? error.stack : String(error);
-      const errorCode =
-        error instanceof Error && "code" in error
-          ? (error as { code: string }).code
-          : undefined;
-
-      if (isSqliteBusyError(error)) {
-        return NextResponse.json(
-          {
-            error: "Database is temporarily busy",
-            details: "The database is currently being updated. Please try again in a few moments.",
-            code: "SQLITE_BUSY",
-            stack: stackTrace,
-          },
-          { status: 503 }
-        );
-      }
-
-      return NextResponse.json(
-        { error: "Database not available", details: error instanceof Error ? error.message : "Unknown error", code: errorCode, stack: stackTrace },
-        { status: 500 }
-      );
+      return errorResponse(error, "persons/search metadata");
     }
   }
+
+  // Validate query length (prevent DoS with extremely long queries)
+  const lengthError = validateQueryLength(query, 200);
+  if (lengthError) return lengthError;
 
   // Require at least 3 characters
   if (query.length < 3) {
@@ -210,36 +211,13 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ results });
   } catch (error) {
-    console.error("Search error:", error);
-
-    const stackTrace = error instanceof Error ? error.stack : String(error);
-    const errorCode =
-      error instanceof Error && "code" in error
-        ? (error as { code: string }).code
-        : undefined;
-
     // If FTS table doesn't exist, fall back to LIKE search
     if (error instanceof Error && error.message.includes("no such table: person_fts")) {
       console.log("FTS table not found, falling back to LIKE search");
       return fallbackLikeSearch(query);
     }
 
-    if (isSqliteBusyError(error)) {
-      return NextResponse.json(
-        {
-          error: "Database is temporarily busy",
-          details: "The database is currently being updated. Please try again in a few moments.",
-          code: "SQLITE_BUSY",
-          stack: stackTrace,
-        },
-        { status: 503 }
-      );
-    }
-
-    return NextResponse.json(
-      { error: "Search failed", details: error instanceof Error ? error.message : "Unknown error", code: errorCode, stack: stackTrace },
-      { status: 500 }
-    );
+    return errorResponse(error, "persons/search");
   }
 }
 
@@ -276,9 +254,6 @@ async function fallbackLikeSearch(query: string): Promise<NextResponse> {
 
     return NextResponse.json({ results });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Search failed", details: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    return errorResponse(error, "persons/search fallback");
   }
 }

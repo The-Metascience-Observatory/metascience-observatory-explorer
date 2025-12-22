@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getDb, isSqliteBusyError } from "@/lib/db";
+import { getDb } from "@/lib/db";
+import { errorResponse } from "@/lib/api-utils";
 
 interface CountryFunderCount {
   country_code: string;
@@ -44,33 +45,6 @@ export async function GET() {
 
     return NextResponse.json({ countries });
   } catch (error) {
-    console.error("Error fetching funder countries:", error);
-
-    const stackTrace = error instanceof Error ? error.stack : String(error);
-    const errorCode =
-      error instanceof Error && "code" in error
-        ? (error as { code: string }).code
-        : undefined;
-
-    if (isSqliteBusyError(error)) {
-      return NextResponse.json(
-        {
-          error: "Database is temporarily busy",
-          code: "SQLITE_BUSY",
-          stack: stackTrace,
-        },
-        { status: 503 }
-      );
-    }
-
-    return NextResponse.json(
-      {
-        error: "Failed to fetch funder countries",
-        details: error instanceof Error ? error.message : "Unknown error",
-        code: errorCode,
-        stack: stackTrace,
-      },
-      { status: 500 }
-    );
+    return errorResponse(error, "funders/by-country");
   }
 }

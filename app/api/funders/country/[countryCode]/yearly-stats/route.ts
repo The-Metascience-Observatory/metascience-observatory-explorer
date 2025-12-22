@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getDb, isSqliteBusyError } from "@/lib/db";
+import { getDb } from "@/lib/db";
+import { errorResponse } from "@/lib/api-utils";
 
 interface YearlyStats {
   year: number;
@@ -49,21 +50,6 @@ export async function GET(
 
     return NextResponse.json({ yearlyStats });
   } catch (error) {
-    console.error("Error fetching country yearly stats:", error);
-
-    if (isSqliteBusyError(error)) {
-      return NextResponse.json(
-        { error: "Database is temporarily busy" },
-        { status: 503 }
-      );
-    }
-
-    return NextResponse.json(
-      {
-        error: "Failed to fetch country yearly stats",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500 }
-    );
+    return errorResponse(error, "funders/country/[countryCode]/yearly-stats");
   }
 }

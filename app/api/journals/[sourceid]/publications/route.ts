@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getDb, isDatabaseAvailable, isSqliteBusyError } from "@/lib/db";
+import { getDb, isDatabaseAvailable } from "@/lib/db";
+import { errorResponse, parsePagination } from "@/lib/api-utils";
 import type { JournalPublication, JournalFieldPaper } from "@/lib/types";
 
 export async function GET(
@@ -10,8 +11,7 @@ export async function GET(
     const { sourceid } = await params;
     const { searchParams } = new URL(request.url);
     const fieldid = searchParams.get("fieldid");
-    const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 100);
-    const offset = parseInt(searchParams.get("offset") || "0");
+    const { offset, limit } = parsePagination(searchParams);
 
     // Check if database is available
     if (!isDatabaseAvailable()) {
@@ -107,36 +107,6 @@ export async function GET(
       });
     }
   } catch (error) {
-    console.error("Error fetching journal publications:", error);
-
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    const stackTrace = error instanceof Error ? error.stack : String(error);
-    const errorCode =
-      error instanceof Error && "code" in error
-        ? (error as { code: string }).code
-        : undefined;
-
-    if (isSqliteBusyError(error)) {
-      return NextResponse.json(
-        {
-          error: "Database is temporarily busy",
-          details:
-            "The database is currently being updated (e.g., creating indexes). Please try again in a few moments.",
-          code: "SQLITE_BUSY",
-          stack: stackTrace,
-        },
-        { status: 503 }
-      );
-    }
-
-    return NextResponse.json(
-      {
-        error: "Failed to fetch journal publications",
-        details: errorMessage,
-        code: errorCode,
-        stack: stackTrace,
-      },
-      { status: 500 }
-    );
+    return errorResponse(error, "journals/[sourceid]/publications");
   }
 }

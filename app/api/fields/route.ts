@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
+import { errorResponse } from "@/lib/api-utils";
 
 // Cache the field list in memory
 let fieldListCache: unknown[] | null = null;
@@ -29,13 +30,6 @@ export async function GET() {
 
     return NextResponse.json(fieldListCache);
   } catch (error) {
-    console.error("Error loading field list:", error);
-    return NextResponse.json(
-      {
-        error: "Failed to load field list",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500 }
-    );
+    return errorResponse(error, "fields");
   }
 }

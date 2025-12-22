@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCachedGrants, setCachedGrant } from "@/lib/db";
+import { fetchWithTimeout } from "@/lib/api-utils";
 
 export interface GrantDetails {
   award_id: string;
@@ -14,7 +15,7 @@ export interface GrantDetails {
 }
 
 // Clean up grant ID - remove common prefixes/suffixes and standardize
-function cleanGrantId(awardId: string, funder: string): string {
+function cleanGrantId(awardId: string, _funder: string): string {
   let cleaned = awardId.trim();
 
   // Remove common prefixes
@@ -27,7 +28,7 @@ function cleanGrantId(awardId: string, funder: string): string {
 function extractNIHProjectNum(awardId: string): string {
   // NIH grants often have format like: 5R01DK102815-05, R01DK102815, DK102815
   // Also handle: 1R01CA123456-01A1, U01CA123456, etc.
-  let cleaned = awardId.toUpperCase().replace(/\s+/g, '');
+  const cleaned = awardId.toUpperCase().replace(/\s+/g, '');
 
   // If it starts with a digit followed by a letter, it might have a prefix indicator
   // Remove trailing year/suffix info like -01, -01A1
@@ -128,7 +129,7 @@ async function fetchNIHGrantDetails(awardId: string): Promise<Partial<GrantDetai
   try {
     const projectNum = extractNIHProjectNum(awardId);
 
-    const response = await fetch('https://api.reporter.nih.gov/v2/projects/search', {
+    const response = await fetchWithTimeout('https://api.reporter.nih.gov/v2/projects/search', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -140,7 +141,7 @@ async function fetchNIHGrantDetails(awardId: string): Promise<Partial<GrantDetai
         limit: 1,
         offset: 0
       })
-    });
+    }, 10000);
 
     if (!response.ok) {
       console.log(`NIH API returned ${response.status} for ${projectNum}`);
@@ -178,7 +179,7 @@ async function fetchNSFGrantDetails(awardId: string): Promise<Partial<GrantDetai
       return null;
     }
 
-    const response = await fetch(`https://api.nsf.gov/services/v1/awards/${numericId}.json`);
+    const response = await fetchWithTimeout(`https://api.nsf.gov/services/v1/awards/${numericId}.json`, {}, 10000);
 
     if (!response.ok) {
       console.log(`NSF API returned ${response.status} for ${numericId}`);
@@ -323,7 +324,7 @@ export async function POST(request: Request) {
       // NIH API supports multiple project_nums in one request
       try {
         const projectNums = nihGrants.map(g => extractNIHProjectNum(g.award_id));
-        const response = await fetch('https://api.reporter.nih.gov/v2/projects/search', {
+        const response = await fetchWithTimeout('https://api.reporter.nih.gov/v2/projects/search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -331,7 +332,7 @@ export async function POST(request: Request) {
             limit: 50,
             offset: 0
           })
-        });
+        }, 15000);
 
         if (response.ok) {
           const data = await response.json();

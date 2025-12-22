@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getDb, isSqliteBusyError } from "@/lib/db";
+import { getDb } from "@/lib/db";
+import { errorResponse } from "@/lib/api-utils";
 
 // OpenAlex field-subfield mapping (Level 0 -> Level 1)
 // Based on OpenAlex concept hierarchy
@@ -89,31 +90,6 @@ export async function GET() {
 
     return NextResponse.json({ fields: hierarchy });
   } catch (error) {
-    console.error("Error fetching field hierarchy:", error);
-
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    const stackTrace = error instanceof Error ? error.stack : String(error);
-    const errorCode =
-      error instanceof Error && "code" in error
-        ? (error as { code: string }).code
-        : undefined;
-
-    if (isSqliteBusyError(error)) {
-      return NextResponse.json(
-        {
-          error: "Database is temporarily busy",
-          details:
-            "The database is currently being updated (e.g., creating indexes). Please try again in a few moments.",
-          code: "SQLITE_BUSY",
-          stack: stackTrace,
-        },
-        { status: 503 }
-      );
-    }
-
-    return NextResponse.json(
-      { error: "Failed to fetch field hierarchy", details: errorMessage, code: errorCode, stack: stackTrace },
-      { status: 500 }
-    );
+    return errorResponse(error, "fields/hierarchy");
   }
 }

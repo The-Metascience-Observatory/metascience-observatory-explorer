@@ -143,12 +143,9 @@ export function JournalSearch({ compact = false }: JournalSearchProps) {
       )}
 
       {results.length > 0 && (
-        <div className="mt-3 space-y-2">
-          <p className="text-xs text-gray-500">
-            Showing {results.length} result{results.length !== 1 ? "s" : ""}
-          </p>
+        <div className="mt-3">
           <div className="grid gap-2">
-            {results.slice(0, compact ? 5 : 20).map((journal) => (
+            {results.slice(0, compact ? 7 : 20).map((journal) => (
               <JournalCard key={journal.sourceid} journal={journal} compact={compact} />
             ))}
           </div>

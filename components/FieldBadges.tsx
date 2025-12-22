@@ -119,11 +119,11 @@ export function FieldBadges({ fields, sourceid, maxDisplay = 10 }: FieldBadgesPr
     const widthPercent = Math.max(25, (field.paper_count / maxPaperCount) * 100);
 
     return (
-      <div key={field.fieldid} className="w-full">
+      <div key={field.fieldid} className="w-full overflow-hidden">
         <button
           onClick={() => handleFieldClick(field.fieldid)}
-          className={`px-3 py-1.5 rounded text-sm ${colors.bg} ${colors.text} ${colors.hover} transition-all cursor-pointer flex items-center justify-between gap-2`}
-          style={{ width: `${widthPercent}%`, minWidth: 'fit-content' }}
+          className={`px-3 py-1.5 rounded text-sm ${colors.bg} ${colors.text} ${colors.hover} transition-all cursor-pointer flex items-center justify-between gap-2 max-w-full`}
+          style={{ width: `${widthPercent}%` }}
           title={`${field.paper_count.toLocaleString()} papers - Click to see top papers`}
         >
           <span className="truncate">{field.field_name}</span>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCachedOrcid, setCachedOrcid } from "@/lib/db";
+import { fetchWithTimeout } from "@/lib/api-utils";
 import { XMLParser } from "fast-xml-parser";
 import type { OrcidEducation, OrcidEmployment, OrcidData } from "@/lib/types";
 
@@ -143,16 +144,17 @@ export async function GET(
       ignoreAttributes: false,
       attributeNamePrefix: '@_',
       removeNSPrefix: true,
+      processEntities: false,  // Prevent XXE attacks
     });
 
-    // Fetch education and employment in parallel
+    // Fetch education and employment in parallel with timeout
     const [educationRes, employmentRes] = await Promise.all([
-      fetch(`https://pub.orcid.org/v3.0/${orcid}/educations`, {
+      fetchWithTimeout(`https://pub.orcid.org/v3.0/${orcid}/educations`, {
         headers: { 'Accept': 'application/xml' },
-      }),
-      fetch(`https://pub.orcid.org/v3.0/${orcid}/employments`, {
+      }, 10000),
+      fetchWithTimeout(`https://pub.orcid.org/v3.0/${orcid}/employments`, {
         headers: { 'Accept': 'application/xml' },
-      }),
+      }, 10000),
     ]);
 
     if (!educationRes.ok && !employmentRes.ok) {

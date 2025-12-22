@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
-import { ArrowLeft, FileText, Users, BookOpen, Loader2, TrendingUp } from "lucide-react";
+import { ArrowLeft, Users, BookOpen, Loader2, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { FieldDetails } from "@/lib/types";
 
@@ -47,7 +47,7 @@ export default function FieldDetailPage({
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 overflow-hidden">
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
           <span className="ml-3 text-gray-500">Loading field data...</span>
@@ -58,7 +58,7 @@ export default function FieldDetailPage({
 
   if (error) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 overflow-hidden">
         <Link
           href="/"
           className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 mb-4"
@@ -83,7 +83,7 @@ export default function FieldDetailPage({
   const levelColor = summary.level === 0 ? "blue" : "purple";
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 overflow-hidden">
       <Link
         href="/"
         className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 mb-4"

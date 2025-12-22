@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import type { PersonSearchItem } from "@/lib/types";
@@ -11,7 +12,7 @@ interface PersonCardProps {
   compact?: boolean;
 }
 
-export function PersonCard({ person, compact = false }: PersonCardProps) {
+export const PersonCard = memo(function PersonCard({ person, compact = false }: PersonCardProps) {
   return (
     <Link href={`/persons/${person.authorid}`}>
       <Card className={`${compact ? "p-2" : "p-4"} hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors cursor-pointer`}>
@@ -48,4 +49,4 @@ export function PersonCard({ person, compact = false }: PersonCardProps) {
       </Card>
     </Link>
   );
-}
+});

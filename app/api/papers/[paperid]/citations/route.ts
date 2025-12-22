@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb, isDatabaseAvailable, isSqliteBusyError } from "@/lib/db";
+import { getDb, isDatabaseAvailable } from "@/lib/db";
+import { errorResponse, parsePagination } from "@/lib/api-utils";
 import type { PaperCitation } from "@/lib/types";
 
 const PAGE_SIZE = 100;
@@ -10,9 +11,7 @@ export async function GET(
 ) {
   try {
     const { paperid } = await params;
-    const searchParams = request.nextUrl.searchParams;
-    const offset = parseInt(searchParams.get("offset") || "0", 10);
-    const limit = parseInt(searchParams.get("limit") || String(PAGE_SIZE), 10);
+    const { offset, limit } = parsePagination(request.nextUrl.searchParams, { limit: PAGE_SIZE });
 
     if (!isDatabaseAvailable()) {
       return NextResponse.json(
@@ -58,18 +57,6 @@ export async function GET(
       hasMore: offset + citations.length < totalCount,
     });
   } catch (error) {
-    console.error("Error fetching citations:", error);
-
-    if (isSqliteBusyError(error)) {
-      return NextResponse.json(
-        { error: "Database is temporarily busy" },
-        { status: 503 }
-      );
-    }
-
-    return NextResponse.json(
-      { error: "Failed to fetch citations" },
-      { status: 500 }
-    );
+    return errorResponse(error, "papers/[paperid]/citations");
   }
 }

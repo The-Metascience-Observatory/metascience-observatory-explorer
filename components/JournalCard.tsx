@@ -23,11 +23,11 @@ export function JournalCard({ journal, compact = false }: JournalCardProps) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h3 className={`${compact ? "text-sm" : ""} font-medium truncate`}>{journal.display_name}</h3>
-              {journal.is_oa && (
+              {journal.is_oa ? (
                 <span className="px-1.5 py-0.5 text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded">
                   OA
                 </span>
-              )}
+              ) : null}
             </div>
             {!compact && (
               <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">

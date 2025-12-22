@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import DOMPurify from "dompurify";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PaperCitationsChart, CitationViewMode } from "@/components/PaperCitationsChart";
 import { ListItemLink } from "@/components/ListItemLink";
@@ -73,19 +74,9 @@ function generateCiteKey(authors: { display_name: string | null }[], year: numbe
 
 // Sanitize HTML to only allow safe formatting tags (i, b, em, strong, sub, sup)
 function sanitizeHtml(html: string): string {
-  // Only allow specific safe tags for text formatting
-  const allowedTags = ['i', 'b', 'em', 'strong', 'sub', 'sup'];
-  const tagPattern = /<\/?([a-zA-Z][a-zA-Z0-9]*)\b[^>]*>/gi;
-
-  return html.replace(tagPattern, (match, tagName) => {
-    const lowerTag = tagName.toLowerCase();
-    if (allowedTags.includes(lowerTag)) {
-      // Keep only the tag name, strip any attributes
-      const isClosing = match.startsWith('</');
-      return isClosing ? `</${lowerTag}>` : `<${lowerTag}>`;
-    }
-    // Remove disallowed tags entirely
-    return '';
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ['i', 'b', 'em', 'strong', 'sub', 'sup'],
+    ALLOWED_ATTR: [], // No attributes allowed
   });
 }
 
@@ -334,7 +325,7 @@ export default function PaperDetailPage() {
 
   if (loading) {
     return (
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <div className="flex items-center justify-center py-24">
           <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
           <span className="ml-3 text-gray-500">Loading paper details...</span>
@@ -350,10 +341,10 @@ export default function PaperDetailPage() {
 
   if (error || !data) {
     return (
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <Link
           href="/"
-          className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 mb-8"
+          className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 mb-4"
         >
           <ArrowLeft className="h-4 w-4 mr-1" />
           Back to search
@@ -368,7 +359,13 @@ export default function PaperDetailPage() {
     );
   }
 
-  const { summary, authors, fields, references, citations, citationHistory, trials, patents } = data;
+  const { summary, authors, fields, references, citationHistory, trials, patents } = data;
+
+  // Deduplicate authors by authorid (an author can have multiple affiliations)
+  const uniqueAuthors = authors.filter(
+    (author, index, self) =>
+      index === self.findIndex((a) => a.authorid === author.authorid)
+  );
 
   // Separate fields by level
   const broadFields = fields.filter((f) => f.level === 0);
@@ -379,8 +376,8 @@ export default function PaperDetailPage() {
 
   // Generate BibTeX
   const generateBibtex = () => {
-    const citeKey = generateCiteKey(authors, summary.year);
-    const authorList = authors.map(a => escapeBibtex(a.display_name || 'Unknown')).join(' and ');
+    const citeKey = generateCiteKey(uniqueAuthors, summary.year);
+    const authorList = uniqueAuthors.map(a => escapeBibtex(a.display_name || 'Unknown')).join(' and ');
 
     let bibtex = `@article{${citeKey},\n`;
     if (summary.title) bibtex += `  title = {${escapeBibtex(summary.title)}},\n`;
@@ -448,7 +445,7 @@ export default function PaperDetailPage() {
 
   const handleDownloadBibtex = () => {
     const bibtex = generateBibtex();
-    const citeKey = generateCiteKey(authors, summary.year);
+    const citeKey = generateCiteKey(uniqueAuthors, summary.year);
     const blob = new Blob([bibtex], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -461,11 +458,11 @@ export default function PaperDetailPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
       {/* Back link */}
       <Link
         href="/"
-        className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 mb-8"
+        className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 mb-4"
       >
         <ArrowLeft className="h-4 w-4 mr-1" />
         Back to search
@@ -483,11 +480,11 @@ export default function PaperDetailPage() {
             />
 
             {/* Authors */}
-            {authors.length > 0 && (
+            {uniqueAuthors.length > 0 && (
               <div className="mb-4">
                 <div className="text-sm text-gray-600 dark:text-gray-400">
-                  {(showAllAuthors ? authors : authors.slice(0, 5)).map((author, idx) => (
-                    <span key={`${author.authorid}-${idx}`}>
+                  {(showAllAuthors ? uniqueAuthors : uniqueAuthors.slice(0, 5)).map((author, idx) => (
+                    <span key={author.authorid}>
                       {idx > 0 && ", "}
                       <Link
                         href={`/persons/${author.authorid}`}
@@ -497,15 +494,15 @@ export default function PaperDetailPage() {
                       </Link>
                     </span>
                   ))}
-                  {authors.length > 5 && !showAllAuthors && (
+                  {uniqueAuthors.length > 5 && !showAllAuthors && (
                     <button
                       onClick={() => setShowAllAuthors(true)}
                       className="text-blue-600 hover:text-blue-800 hover:underline ml-1"
                     >
-                      ({authors.length} authors)
+                      ({uniqueAuthors.length} authors)
                     </button>
                   )}
-                  {authors.length > 5 && showAllAuthors && (
+                  {uniqueAuthors.length > 5 && showAllAuthors && (
                     <button
                       onClick={() => setShowAllAuthors(false)}
                       className="text-blue-600 hover:text-blue-800 hover:underline ml-1"
@@ -562,7 +559,7 @@ export default function PaperDetailPage() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-500">Authors</span>
-                <span className="font-semibold">{authors.length}</span>
+                <span className="font-semibold">{uniqueAuthors.length}</span>
               </div>
               {/* Document type */}
               {!extraLoading && metadata?.docType && (
@@ -834,7 +831,7 @@ export default function PaperDetailPage() {
           <Card>
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-base">Citations Over Time</CardTitle>
+                <CardTitle className="text-base">Total Citations Per Year</CardTitle>
                 <div className="flex rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden text-sm">
                   <button
                     onClick={() => setCitationViewMode("yearly")}

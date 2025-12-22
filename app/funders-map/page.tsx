@@ -8,7 +8,7 @@ import {
   Geography,
   ZoomableGroup,
 } from "react-simple-maps";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import { formatNumber, getCountryName } from "@/lib/utils";
 
