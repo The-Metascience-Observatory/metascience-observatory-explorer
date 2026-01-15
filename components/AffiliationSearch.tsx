@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { AffiliationCard } from "@/components/AffiliationCard";
 import type { AffiliationSearchItem } from "@/lib/types";
@@ -18,6 +19,7 @@ interface SearchResponse {
 }
 
 export function AffiliationSearch({ compact = false }: AffiliationSearchProps) {
+  const router = useRouter();
   const [results, setResults] = useState<AffiliationSearchItem[]>([]);
   const [totalAffiliations, setTotalAffiliations] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
@@ -89,6 +91,15 @@ export function AffiliationSearch({ compact = false }: AffiliationSearchProps) {
     []
   );
 
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter" && query.length >= 2) {
+        router.push(`/affiliations?q=${encodeURIComponent(query)}`);
+      }
+    },
+    [query, router]
+  );
+
   if (initialLoading) {
     return (
       <div className={`flex items-center justify-center ${compact ? "py-4" : "py-12"}`}>
@@ -126,6 +137,7 @@ export function AffiliationSearch({ compact = false }: AffiliationSearchProps) {
           placeholder={compact ? "Search institutions..." : "Search institutions by name, country, or type..."}
           value={query}
           onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
           className={compact ? "pl-9 h-10 text-sm" : "pl-10 h-12 text-lg"}
         />
       </div>

@@ -15,7 +15,7 @@ export interface GrantDetails {
 }
 
 // Clean up grant ID - remove common prefixes/suffixes and standardize
-function cleanGrantId(awardId: string, _funder: string): string {
+function cleanGrantId(awardId: string): string {
   let cleaned = awardId.trim();
 
   // Remove common prefixes
@@ -54,7 +54,7 @@ function getNSFUrl(awardId: string): string {
 function getFunderUrl(awardId: string, funderName: string | null | undefined): string | null {
   if (!funderName) return null;
   const funderLower = funderName.toLowerCase();
-  const cleanId = cleanGrantId(awardId, funderName);
+  const cleanId = cleanGrantId(awardId);
 
   if (funderLower.includes('darpa')) {
     // DARPA doesn't have a public grant database, but we can link to their site

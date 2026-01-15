@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDb, isDatabaseAvailable } from "@/lib/db";
+import { getDb, isDatabaseAvailable, getRetractionsDb } from "@/lib/db";
 import { errorResponse } from "@/lib/api-utils";
 import type {
   PersonSummary,
@@ -11,6 +11,7 @@ import type {
   PersonPublication,
   PersonDetails,
   PersonTrial,
+  PersonRetractionStats,
 } from "@/lib/types";
 
 export async function GET(
@@ -44,19 +45,28 @@ export async function GET(
       );
     }
 
-    // Get yearly statistics
+    // Get yearly statistics - calculate from person_publications to avoid duplicates
+    // The person_yearly_stats table may have incorrect counts due to duplicates in source data
     let yearlyStats: PersonYearlyStats[] = [];
     try {
       yearlyStats = db
         .prepare(
-          `SELECT authorid, year, paper_count, total_citations
-           FROM person_yearly_stats
-           WHERE authorid = ?
+          `SELECT
+             ? as authorid,
+             year,
+             COUNT(DISTINCT paperid) as paper_count,
+             COALESCE(SUM(cited_by_count), 0) as total_citations
+           FROM (
+             SELECT DISTINCT paperid, year, cited_by_count
+             FROM person_publications
+             WHERE authorid = ?
+           )
+           GROUP BY year
            ORDER BY year`
         )
-        .all(authorid) as PersonYearlyStats[];
+        .all(authorid, authorid) as PersonYearlyStats[];
     } catch {
-      console.log("person_yearly_stats table not found, skipping");
+      console.log("person_publications table not found for yearly stats, skipping");
     }
 
     // Get affiliations - filter to 2+ papers and exclude null/blank institutions
@@ -144,19 +154,55 @@ export async function GET(
     }
 
     // Get clinical trials associated with this person (via their papers)
+    // Join with ctg_studies to get trial title, sponsor, and status
     let trials: PersonTrial[] = [];
     try {
       trials = db
         .prepare(
-          `SELECT authorid, nct_id, paper_count
-           FROM person_trials
-           WHERE authorid = ?
-           ORDER BY paper_count DESC
-           LIMIT 25`
+          `SELECT pt.authorid, pt.nct_id, pt.paper_count,
+                  ctg.title, ctg.sponsor, ctg.status
+           FROM person_trials pt
+           LEFT JOIN ctg_studies ctg ON pt.nct_id = ctg.nct_id
+           WHERE pt.authorid = ?
+           ORDER BY pt.paper_count DESC
+           LIMIT 50`
         )
         .all(authorid) as PersonTrial[];
     } catch {
       console.log("person_trials table not found, skipping");
+    }
+
+    // Get retraction statistics from Retraction Watch database
+    let retractionStats: PersonRetractionStats | undefined;
+    const retractionsDb = getRetractionsDb();
+    if (retractionsDb) {
+      try {
+        const statsRow = retractionsDb.prepare(`
+          SELECT
+            total_retractions,
+            total_concerns,
+            total_corrections,
+            total_reinstatements
+          FROM author_retraction_stats
+          WHERE authorid = ?
+        `).get(authorid) as {
+          total_retractions: number;
+          total_concerns: number;
+          total_corrections: number;
+          total_reinstatements: number;
+        } | undefined;
+
+        if (statsRow) {
+          retractionStats = {
+            totalRetractions: statsRow.total_retractions,
+            totalConcerns: statsRow.total_concerns,
+            totalCorrections: statsRow.total_corrections,
+            totalReinstatements: statsRow.total_reinstatements,
+          };
+        }
+      } catch (e) {
+        console.error("Error fetching author retraction stats:", e);
+      }
     }
 
     const response: PersonDetails = {
@@ -168,6 +214,7 @@ export async function GET(
       tweets,
       recentPublications,
       trials,
+      retractionStats,
     };
 
     return NextResponse.json(response);

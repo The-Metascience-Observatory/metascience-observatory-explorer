@@ -63,12 +63,25 @@ export interface JournalOfficialMetrics {
   scopus_rank?: string;             // e.g., "15/300" in category
 }
 
+// Retraction statistics from Retraction Watch
+export interface JournalRetractionStats {
+  totalRetractions: number;
+  totalConcerns: number;
+  totalCorrections: number;
+  totalReinstatements: number;
+  retractionRate: number | null;      // retractions / papers since 2010 * 100
+  papersSince2010: number | null;     // denominator for rate
+  firstRetractionYear: number | null;
+  lastRetractionYear: number | null;
+}
+
 export interface JournalDetails {
   summary: JournalSummary;
   yearlyStats: JournalYearlyStats[];
   fields: JournalField[];
   impactFactors?: JournalImpactFactor[];      // Computed metrics
   officialMetrics?: JournalOfficialMetrics;   // From Scopus API
+  retractionStats?: JournalRetractionStats;   // From Retraction Watch
 }
 
 // Types for person/author data
@@ -145,6 +158,14 @@ export interface PersonPublication {
   source_name: string | null;
 }
 
+// Retraction statistics for authors
+export interface PersonRetractionStats {
+  totalRetractions: number;
+  totalConcerns: number;
+  totalCorrections: number;
+  totalReinstatements: number;
+}
+
 export interface PersonDetails {
   summary: PersonSummary;
   yearlyStats: PersonYearlyStats[];
@@ -154,6 +175,7 @@ export interface PersonDetails {
   tweets: PersonTweet[];
   recentPublications: PersonPublication[];
   trials?: PersonTrial[];
+  retractionStats?: PersonRetractionStats;
 }
 
 // Types for affiliation/institution data
@@ -265,6 +287,15 @@ export interface FieldDetails {
 }
 
 // Types for paper/publication data
+
+export interface PaperSearchItem {
+  paperid: string;
+  title: string;
+  doi: string | null;
+  year: number | null;
+  cited_by_count: number;
+  source_name: string | null;
+}
 
 export interface JournalPublication {
   paperid: string;
@@ -398,13 +429,34 @@ export interface FunderDetails {
 
 export interface TrialSummary {
   nct_id: string;
+  // Paper linkage stats (from SciSciNet)
   paper_count: number;
   result_paper_count: number | null;
   derived_paper_count: number | null;
   background_paper_count: number | null;
-  total_citations: number | null;
-  first_year: number | null;
-  last_year: number | null;
+  unknown_paper_count: number | null;
+  // ClinicalTrials.gov metadata
+  title: string | null;
+  status: string | null;
+  phase: string | null;
+  study_type: string | null;
+  conditions: string | null;
+  interventions: string | null;
+  sponsor: string | null;
+  enrollment: number | null;
+  start_date: string | null;
+  completion_date: string | null;
+  brief_summary: string | null;
+}
+
+export interface TrialSearchItem {
+  nct_id: string;
+  title: string | null;
+  status: string | null;
+  phase: string | null;
+  sponsor: string | null;
+  enrollment: number | null;
+  paper_count: number | null;
 }
 
 export interface TrialPaper {
@@ -426,11 +478,23 @@ export interface PersonTrial {
   authorid: string;
   nct_id: string;
   paper_count: number;
+  // From ctg_studies join
+  title: string | null;
+  sponsor: string | null;
+  status: string | null;
+}
+
+export interface TrialYearlyStats {
+  nct_id: string;
+  year: number;
+  paper_count: number;
+  total_citations: number;
 }
 
 export interface TrialDetails {
   summary: TrialSummary;
   papers: TrialPaper[];
+  yearlyStats: TrialYearlyStats[];
 }
 
 // Types for ORCID data

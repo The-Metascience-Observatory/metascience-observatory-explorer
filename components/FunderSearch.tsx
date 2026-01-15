@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { FunderCard } from "@/components/FunderCard";
 import type { FunderSearchItem } from "@/lib/types";
@@ -18,6 +19,7 @@ interface SearchResponse {
 }
 
 export function FunderSearch({ compact = false }: FunderSearchProps) {
+  const router = useRouter();
   const [results, setResults] = useState<FunderSearchItem[]>([]);
   const [totalFunders, setTotalFunders] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
@@ -89,6 +91,15 @@ export function FunderSearch({ compact = false }: FunderSearchProps) {
     []
   );
 
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter" && query.length >= 2) {
+        router.push(`/funders?q=${encodeURIComponent(query)}`);
+      }
+    },
+    [query, router]
+  );
+
   if (initialLoading) {
     return (
       <div className={`flex items-center justify-center ${compact ? "py-4" : "py-12"}`}>
@@ -135,6 +146,7 @@ export function FunderSearch({ compact = false }: FunderSearchProps) {
           placeholder={compact ? "Search funders..." : "Search funders by name or country..."}
           value={query}
           onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
           className={compact ? "pl-9 h-10 text-sm" : "pl-10 h-12 text-lg"}
         />
       </div>

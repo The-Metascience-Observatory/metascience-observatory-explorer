@@ -5,6 +5,7 @@ let db: Database.Database | null = null;
 let cacheDb: Database.Database | null = null;
 let abstractsDb: Database.Database | null = null;
 let papersExtraDb: Database.Database | null = null;
+let retractionsDb: Database.Database | null = null;
 
 export function getDb(): Database.Database {
   if (!db) {
@@ -149,6 +150,20 @@ export function getPapersExtraDb(): Database.Database | null {
     }
   }
   return papersExtraDb;
+}
+
+// Get retractions database (Retraction Watch data)
+export function getRetractionsDb(): Database.Database | null {
+  if (retractionsDb === null) {
+    try {
+      const dbPath = path.join(process.cwd(), "data", "retractions.db");
+      retractionsDb = new Database(dbPath, { readonly: true, fileMustExist: true });
+    } catch {
+      // retractions.db may not exist - return null
+      return null;
+    }
+  }
+  return retractionsDb;
 }
 
 // Helper to check if database exists and is accessible

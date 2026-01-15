@@ -192,6 +192,17 @@ export default function PaperDetailPage() {
   const [extraPatents, setExtraPatents] = useState<Array<{ patent: string; isUspto: boolean }>>([]);
   const [extraLoading, setExtraLoading] = useState(true);
 
+  // Retraction Watch data state
+  const [retractionData, setRetractionData] = useState<{
+    recordId: number;
+    retractionDate: string | null;
+    retractionDoi: string | null;
+    retractionNature: string;
+    reasons: string[];
+    notes: string | null;
+  } | null>(null);
+  const [retractionLoading, setRetractionLoading] = useState(true);
+
   // Infinite scroll state for citations
   const [displayedCitations, setDisplayedCitations] = useState<PaperCitation[]>([]);
   const [citationsLoading, setCitationsLoading] = useState(false);
@@ -274,6 +285,24 @@ export default function PaperDetailPage() {
       }
     }
     fetchExtra();
+  }, [paperid]);
+
+  // Lazy load Retraction Watch data
+  useEffect(() => {
+    async function fetchRetraction() {
+      try {
+        const res = await fetch(`/api/papers/${paperid}/retraction`);
+        if (res.ok) {
+          const data = await res.json();
+          setRetractionData(data.retraction);
+        }
+      } catch (e) {
+        console.error("Failed to fetch retraction data:", e);
+      } finally {
+        setRetractionLoading(false);
+      }
+    }
+    fetchRetraction();
   }, [paperid]);
 
   // Load more citations function
@@ -528,6 +557,63 @@ export default function PaperDetailPage() {
 
             <p className="text-xs text-gray-400 mb-4">Data up to Jan 2025</p>
 
+            {/* Retraction Watch detailed card - shown prominently at top */}
+            {!retractionLoading && retractionData && (
+              <div className={`border rounded-lg p-3 mb-4 ${
+                retractionData.retractionNature === 'Retraction'
+                  ? 'bg-red-50 border-red-200 dark:bg-red-950 dark:border-red-800'
+                  : retractionData.retractionNature === 'Expression of concern'
+                  ? 'bg-orange-50 border-orange-200 dark:bg-orange-950 dark:border-orange-800'
+                  : retractionData.retractionNature === 'Correction'
+                  ? 'bg-yellow-50 border-yellow-200 dark:bg-yellow-950 dark:border-yellow-800'
+                  : 'bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-800'
+              }`}>
+                <div className={`font-semibold text-sm mb-2 ${
+                  retractionData.retractionNature === 'Retraction'
+                    ? 'text-red-800 dark:text-red-200'
+                    : retractionData.retractionNature === 'Expression of concern'
+                    ? 'text-orange-800 dark:text-orange-200'
+                    : retractionData.retractionNature === 'Correction'
+                    ? 'text-yellow-800 dark:text-yellow-200'
+                    : 'text-green-800 dark:text-green-200'
+                }`}>
+                  {retractionData.retractionNature === 'Retraction' && '⚠️ Retracted Paper'}
+                  {retractionData.retractionNature === 'Expression of concern' && '⚠️ Expression of Concern'}
+                  {retractionData.retractionNature === 'Correction' && 'Corrected Paper'}
+                  {retractionData.retractionNature === 'Reinstatement' && '✓ Retracted and Reinstated'}
+                </div>
+                {retractionData.retractionDate && (
+                  <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">
+                    <span className="font-medium">Date:</span> {new Date(retractionData.retractionDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                  </div>
+                )}
+                {retractionData.reasons.length > 0 && (
+                  <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">
+                    <span className="font-medium">Reason:</span> {retractionData.reasons.join('; ')}
+                  </div>
+                )}
+                {retractionData.retractionDoi && (
+                  <a
+                    href={`https://doi.org/${retractionData.retractionDoi}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 inline-flex items-center gap-1"
+                  >
+                    View Retraction Notice <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+            )}
+
+            {/* Fallback badge from OpenAlex if no Retraction Watch data but marked retracted */}
+            {!retractionLoading && !retractionData && !extraLoading && metadata?.isRetracted && (
+              <div className="flex flex-wrap gap-2 mb-4">
+                <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 rounded">
+                  ⚠️ Retracted
+                </span>
+              </div>
+            )}
+
             {/* Key stats */}
             <div className="space-y-3 mb-6">
               <div className="flex items-center justify-between">
@@ -577,19 +663,12 @@ export default function PaperDetailPage() {
               )}
             </div>
 
-            {/* Warning badges for retracted/paratext */}
-            {!extraLoading && metadata && (metadata.isRetracted || metadata.isParatext) && (
+            {/* Paratext badge */}
+            {!extraLoading && metadata?.isParatext && (
               <div className="flex flex-wrap gap-2 mb-4">
-                {metadata.isRetracted && (
-                  <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 rounded">
-                    ⚠️ Retracted
-                  </span>
-                )}
-                {metadata.isParatext && (
-                  <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 rounded">
-                    Paratext
-                  </span>
-                )}
+                <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 rounded">
+                  Paratext
+                </span>
               </div>
             )}
 

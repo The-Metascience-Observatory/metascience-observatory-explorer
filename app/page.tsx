@@ -4,14 +4,16 @@ import { JournalSearch } from "@/components/JournalSearch";
 import { PersonSearch } from "@/components/PersonSearch";
 import { AffiliationSearch } from "@/components/AffiliationSearch";
 import { FunderSearch } from "@/components/FunderSearch";
-import { BookOpen, User, Building2, Banknote } from "lucide-react";
+import { TrialSearch } from "@/components/TrialSearch";
+import { PaperSearch } from "@/components/PaperSearch";
+import { BookOpen, User, Building2, Banknote, FlaskConical, FileText } from "lucide-react";
 
 export default function HomePage() {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
 
-      {/* Four search sections */}
-      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
+      {/* Five search sections - 2 rows */}
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-8">
         {/* Journals */}
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
@@ -38,6 +40,17 @@ export default function HomePage() {
           </div>
           <AffiliationSearch compact />
         </div>
+      </div>
+
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
+        {/* Papers */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+            <FileText className="h-5 w-5" />
+            <h2 className="text-lg font-semibold">Papers</h2>
+          </div>
+          <PaperSearch compact />
+        </div>
 
         {/* Funders */}
         <div className="space-y-3">
@@ -46,6 +59,15 @@ export default function HomePage() {
             <h2 className="text-lg font-semibold">Funders</h2>
           </div>
           <FunderSearch compact />
+        </div>
+
+        {/* Clinical Trials */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+            <FlaskConical className="h-5 w-5" />
+            <h2 className="text-lg font-semibold">Clinical Trials</h2>
+          </div>
+          <TrialSearch compact />
         </div>
       </div>
 

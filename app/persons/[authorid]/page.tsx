@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -26,7 +26,7 @@ import {
   GraduationCap,
   Briefcase,
 } from "lucide-react";
-import type { PersonFunding, PersonAffiliation, OrcidData } from "@/lib/types";
+import type { PersonFunding, PersonAffiliation, OrcidData, PersonPublication } from "@/lib/types";
 
 // Check if an institution is likely a university (vs lab/institute)
 function isUniversity(name: string | null): boolean {
@@ -572,12 +572,23 @@ export default function PersonDetailPage() {
   const [grantDetails, setGrantDetails] = useState<Map<string, GrantDetails>>(new Map());
   const [loadingGrants, setLoadingGrants] = useState<Set<string>>(new Set());
 
+  // Clinical trials state
+  const [expandedSponsors, setExpandedSponsors] = useState<Set<string>>(new Set());
+
   // Tweet embeds state
   const [tweetEmbeds, setTweetEmbeds] = useState<Map<string, TweetEmbed>>(new Map());
   const [loadingTweetEmbeds, setLoadingTweetEmbeds] = useState(false);
 
-  // Publications sort state
+  // Publications sort state and pagination
   const [pubSortBy, setPubSortBy] = useState<"citations" | "year">("citations");
+  const [publications, setPublications] = useState<PersonPublication[]>([]);
+  const [pubTotal, setPubTotal] = useState(0);
+  const [pubOffset, setPubOffset] = useState(0);
+  const [pubHasMore, setPubHasMore] = useState(false);
+  const [pubLoading, setPubLoading] = useState(false);
+  const [pubLoadingMore, setPubLoadingMore] = useState(false);
+  const pubObserverRef = useRef<IntersectionObserver | null>(null);
+  const pubLoadMoreRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -672,6 +683,97 @@ export default function PersonDetailPage() {
     fetchTweetEmbeds();
   }, [data?.tweets]);
 
+  // Fetch publications with pagination
+  const fetchPublications = useCallback(async (isLoadMore = false, sort = pubSortBy) => {
+    if (isLoadMore) {
+      setPubLoadingMore(true);
+    } else {
+      setPubLoading(true);
+      setPubOffset(0);
+    }
+
+    try {
+      const currentOffset = isLoadMore ? pubOffset : 0;
+      const res = await fetch(
+        `/api/persons/${authorid}/publications?limit=50&offset=${currentOffset}&sort=${sort}`
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const result = await res.json();
+
+      if (isLoadMore) {
+        setPublications(prev => [...prev, ...result.publications]);
+      } else {
+        setPublications(result.publications);
+      }
+
+      setPubTotal(result.total);
+      setPubHasMore(result.hasMore);
+      setPubOffset(currentOffset + result.publications.length);
+    } catch (err) {
+      console.error('Failed to fetch publications:', err);
+    } finally {
+      setPubLoading(false);
+      setPubLoadingMore(false);
+    }
+  }, [authorid, pubOffset, pubSortBy]);
+
+  // Load publications when data is available
+  useEffect(() => {
+    if (data?.summary) {
+      fetchPublications(false);
+    }
+  }, [data?.summary?.authorid]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handle sort change
+  const handlePubSortChange = (sort: "citations" | "year") => {
+    setPubSortBy(sort);
+    fetchPublications(false, sort);
+  };
+
+  // Load all publications at once
+  const loadAllPublications = async () => {
+    setPubLoading(true);
+    try {
+      const res = await fetch(
+        `/api/persons/${authorid}/publications?limit=${pubTotal}&offset=0&sort=${pubSortBy}`
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const result = await res.json();
+      setPublications(result.publications);
+      setPubTotal(result.total);
+      setPubHasMore(false);
+      setPubOffset(result.publications.length);
+    } catch (err) {
+      console.error('Failed to load all publications:', err);
+    } finally {
+      setPubLoading(false);
+    }
+  };
+
+  // Intersection observer for publications infinite scroll
+  useEffect(() => {
+    if (pubLoading || !publications.length) return;
+
+    pubObserverRef.current = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && pubHasMore && !pubLoadingMore) {
+          fetchPublications(true);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (pubLoadMoreRef.current) {
+      pubObserverRef.current.observe(pubLoadMoreRef.current);
+    }
+
+    return () => {
+      if (pubObserverRef.current) {
+        pubObserverRef.current.disconnect();
+      }
+    };
+  }, [pubLoading, pubHasMore, pubLoadingMore, publications.length, fetchPublications]);
+
   // Toggle funder expansion and fetch grant details
   const toggleFunderExpansion = async (funderKey: string, grants: PersonFunding[]) => {
     const newExpanded = new Set(expandedFunders);
@@ -722,6 +824,17 @@ export default function PersonDetailPage() {
         });
       }
     }
+  };
+
+  // Toggle sponsor expansion for clinical trials
+  const toggleSponsorExpansion = (sponsorKey: string) => {
+    const newExpanded = new Set(expandedSponsors);
+    if (newExpanded.has(sponsorKey)) {
+      newExpanded.delete(sponsorKey);
+    } else {
+      newExpanded.add(sponsorKey);
+    }
+    setExpandedSponsors(newExpanded);
   };
 
   if (loading) {
@@ -779,7 +892,7 @@ export default function PersonDetailPage() {
     );
   }
 
-  const { summary, yearlyStats, affiliations, funding, twitter, tweets, recentPublications, trials } = data;
+  const { summary, yearlyStats, affiliations, funding, twitter, tweets, trials, retractionStats } = data;
 
   // Parse and clean up alternative names
   const getAlternativeNames = (): string[] => {
@@ -896,6 +1009,26 @@ export default function PersonDetailPage() {
                 <span className="text-sm text-gray-500">h-index</span>
                 <span className="font-semibold">{summary.h_index || "—"}</span>
               </div>
+              {retractionStats && (retractionStats.totalRetractions > 0 || retractionStats.totalConcerns > 0) && (
+                <>
+                  {retractionStats.totalRetractions > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-500">Retractions</span>
+                      <span className="font-semibold">
+                        {retractionStats.totalRetractions}
+                      </span>
+                    </div>
+                  )}
+                  {retractionStats.totalConcerns > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-500">Expressions of Concern</span>
+                      <span className="font-semibold">
+                        {retractionStats.totalConcerns}
+                      </span>
+                    </div>
+                  )}
+                </>
+              )}
               {summary.avg_c10 != null && (
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-500" title="Mean number of citations received by this author's papers 10 years after publication">
@@ -1343,44 +1476,98 @@ export default function PersonDetailPage() {
         </div>
       )}
 
-      {/* Clinical Trials */}
+      {/* Clinical Trials - single collapsible dropdown */}
       {trials && trials.length > 0 && (
         <div className="mb-8">
-          <h2 className="flex items-center gap-2 text-lg font-semibold mb-3">
-            <FlaskConical className="h-5 w-5" />
-            Clinical Trials
-          </h2>
-          <div className="divide-y dark:divide-gray-800">
-            {trials.map((trial, idx) => (
-              <Link
-                key={`${trial.nct_id}-${idx}`}
-                href={`/trials/${trial.nct_id}`}
-                className="flex items-center justify-between py-2 hover:bg-gray-50 dark:hover:bg-gray-800/50 -mx-2 px-2 rounded transition-colors"
-              >
-                <span className="font-medium text-blue-600 hover:text-blue-800">
-                  {trial.nct_id}
+          <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+            {/* Header bar */}
+            <button
+              onClick={() => toggleSponsorExpansion("trials")}
+              className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                {expandedSponsors.has("trials") ? (
+                  <ChevronDown className="h-4 w-4 text-gray-500" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 text-gray-500" />
+                )}
+                <FlaskConical className="h-5 w-5" />
+                <span className="font-medium">Clinical Trials</span>
+                <span className="px-2 py-0.5 bg-gray-200 dark:bg-gray-600 rounded text-xs">
+                  {trials.length} trial{trials.length !== 1 ? 's' : ''}
                 </span>
-                <span className="text-sm text-gray-500 tabular-nums">
-                  {trial.paper_count} paper{trial.paper_count !== 1 ? 's' : ''}
-                </span>
-              </Link>
-            ))}
+              </div>
+              <span className="text-sm text-gray-500 tabular-nums">
+                {formatNumber(trials.reduce((sum, t) => sum + t.paper_count, 0))} papers
+              </span>
+            </button>
+
+            {/* Expanded trial list */}
+            {expandedSponsors.has("trials") && (
+              <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                {trials.map((trial, idx) => (
+                  <Link
+                    key={`${trial.nct_id}-${idx}`}
+                    href={`/trials/${trial.nct_id}`}
+                    className="block px-4 py-3 pl-11 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-blue-600 hover:text-blue-800">
+                            {trial.nct_id}
+                          </span>
+                          {trial.sponsor && (
+                            <span className="text-sm text-gray-500">
+                              · {trial.sponsor}
+                            </span>
+                          )}
+                        </div>
+                        {trial.title && (
+                          <div className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
+                            {trial.title}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <div className="text-sm text-gray-500 tabular-nums">
+                          {trial.paper_count} paper{trial.paper_count !== 1 ? 's' : ''}
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
 
       {/* Publications */}
-      {recentPublications.length > 0 && (
+      {(publications.length > 0 || pubLoading) && (
         <div className="mb-8">
           <div className="flex items-center justify-between mb-3">
             <h2 className="flex items-center gap-2 text-lg font-semibold">
               <BookOpen className="h-5 w-5" />
               Publications
+              {pubTotal > 0 && (
+                <span className="text-sm font-normal text-gray-500">
+                  ({publications.length.toLocaleString()} of {pubTotal.toLocaleString()})
+                  {pubHasMore && !pubLoading && (
+                    <button
+                      onClick={loadAllPublications}
+                      className="ml-2 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                    >
+                      Show all
+                    </button>
+                  )}
+                </span>
+              )}
             </h2>
             <div className="flex items-center gap-1">
               <ArrowUpDown className="h-4 w-4 text-gray-400" />
               <button
-                onClick={() => setPubSortBy("citations")}
+                onClick={() => handlePubSortChange("citations")}
                 className={`px-2 py-1 text-sm rounded transition-colors ${
                   pubSortBy === "citations"
                     ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200"
@@ -1390,7 +1577,7 @@ export default function PersonDetailPage() {
                 Citations
               </button>
               <button
-                onClick={() => setPubSortBy("year")}
+                onClick={() => handlePubSortChange("year")}
                 className={`px-2 py-1 text-sm rounded transition-colors ${
                   pubSortBy === "year"
                     ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200"
@@ -1401,16 +1588,18 @@ export default function PersonDetailPage() {
               </button>
             </div>
           </div>
+
+          {/* Initial loading state */}
+          {pubLoading && publications.length === 0 && (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+              <span className="ml-2 text-gray-500">Loading publications...</span>
+            </div>
+          )}
+
+          {/* Publications list */}
           <div className="divide-y dark:divide-gray-800">
-            {[...recentPublications]
-              .sort((a, b) => {
-                if (pubSortBy === "citations") {
-                  return (b.cited_by_count || 0) - (a.cited_by_count || 0);
-                } else {
-                  return (b.year || 0) - (a.year || 0);
-                }
-              })
-              .map((pub, idx) => (
+            {publications.map((pub, idx) => (
               <Link
                 key={`${pub.paperid}-${idx}`}
                 href={`/papers/${pub.paperid}`}
@@ -1436,6 +1625,21 @@ export default function PersonDetailPage() {
                 </div>
               </Link>
             ))}
+          </div>
+
+          {/* Load more sentinel / status */}
+          <div ref={pubLoadMoreRef} className="py-4">
+            {pubLoadingMore && (
+              <div className="flex items-center justify-center">
+                <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                <span className="ml-2 text-sm text-gray-500">Loading more...</span>
+              </div>
+            )}
+            {!pubHasMore && publications.length > 0 && (
+              <p className="text-center text-sm text-gray-500">
+                Showing all {publications.length.toLocaleString()} publications
+              </p>
+            )}
           </div>
         </div>
       )}
