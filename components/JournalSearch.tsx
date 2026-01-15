@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { JournalCard } from "@/components/JournalCard";
 import type { JournalSearchItem } from "@/lib/types";
@@ -18,6 +19,7 @@ interface SearchResponse {
 }
 
 export function JournalSearch({ compact = false }: JournalSearchProps) {
+  const router = useRouter();
   const [results, setResults] = useState<JournalSearchItem[]>([]);
   const [totalJournals, setTotalJournals] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
@@ -89,6 +91,15 @@ export function JournalSearch({ compact = false }: JournalSearchProps) {
     []
   );
 
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter" && query.length >= 2) {
+        router.push(`/journals?q=${encodeURIComponent(query)}`);
+      }
+    },
+    [query, router]
+  );
+
   if (initialLoading) {
     return (
       <div className={`flex items-center justify-center ${compact ? "py-4" : "py-12"}`}>
@@ -126,6 +137,7 @@ export function JournalSearch({ compact = false }: JournalSearchProps) {
           placeholder={compact ? "Search journals..." : "Search journals by name, ISSN, or publisher..."}
           value={query}
           onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
           className={compact ? "pl-9 h-10 text-sm" : "pl-10 h-12 text-lg"}
         />
       </div>

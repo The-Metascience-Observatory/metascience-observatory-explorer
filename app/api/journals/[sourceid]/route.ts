@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDb, isDatabaseAvailable } from "@/lib/db";
+import { getDb, isDatabaseAvailable, getRetractionsDb } from "@/lib/db";
 import { errorResponse } from "@/lib/api-utils";
 import { fetchScopusCiteScore } from "@/lib/scopus";
 import type {
@@ -8,6 +8,7 @@ import type {
   JournalField,
   JournalImpactFactor,
   JournalOfficialMetrics,
+  JournalRetractionStats,
   JournalDetails,
 } from "@/lib/types";
 
@@ -115,12 +116,63 @@ export async function GET(
       }
     }
 
+    // Fetch retraction statistics from Retraction Watch database
+    let retractionStats: JournalRetractionStats | undefined;
+    const retractionsDb = getRetractionsDb();
+    if (retractionsDb) {
+      try {
+        const statsRow = retractionsDb.prepare(`
+          SELECT
+            total_retractions,
+            total_concerns,
+            total_corrections,
+            total_reinstatements,
+            first_retraction_year,
+            last_retraction_year
+          FROM journal_retraction_stats
+          WHERE sourceid = ?
+        `).get(sourceid) as {
+          total_retractions: number;
+          total_concerns: number;
+          total_corrections: number;
+          total_reinstatements: number;
+          first_retraction_year: number | null;
+          last_retraction_year: number | null;
+        } | undefined;
+
+        if (statsRow) {
+          // Calculate papers since 2010 for rate calculation
+          const papersSince2010 = yearlyStats
+            .filter(ys => ys.year >= 2010)
+            .reduce((sum, ys) => sum + ys.paper_count, 0);
+
+          const retractionRate = papersSince2010 > 0
+            ? (statsRow.total_retractions / papersSince2010) * 100
+            : null;
+
+          retractionStats = {
+            totalRetractions: statsRow.total_retractions,
+            totalConcerns: statsRow.total_concerns,
+            totalCorrections: statsRow.total_corrections,
+            totalReinstatements: statsRow.total_reinstatements,
+            retractionRate,
+            papersSince2010,
+            firstRetractionYear: statsRow.first_retraction_year,
+            lastRetractionYear: statsRow.last_retraction_year,
+          };
+        }
+      } catch (e) {
+        console.error("Error fetching retraction stats:", e);
+      }
+    }
+
     const response: JournalDetails = {
       summary,
       yearlyStats,
       fields,
       impactFactors: impactFactors.length > 0 ? impactFactors : undefined,
       officialMetrics,
+      retractionStats,
     };
 
     return NextResponse.json(response);

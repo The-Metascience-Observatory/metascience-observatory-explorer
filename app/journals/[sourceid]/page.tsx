@@ -95,7 +95,7 @@ export default function JournalDetailPage() {
     );
   }
 
-  const { summary, yearlyStats, fields, impactFactors, officialMetrics } = data;
+  const { summary, yearlyStats, fields, impactFactors, officialMetrics, retractionStats } = data;
 
   // Get most recent computed metrics
   const latestIF = impactFactors && impactFactors.length > 0
@@ -250,6 +250,68 @@ export default function JournalDetailPage() {
                 </div>
                 <p className="text-xs text-gray-400 mt-2">
                   Metrics computed from OpenAlex data unless marked (official).
+                </p>
+              </div>
+            )}
+
+            {/* Retraction Statistics */}
+            {retractionStats && (retractionStats.totalRetractions > 0 || retractionStats.totalConcerns > 0) && (
+              <div className="border-t pt-4">
+                <div className="text-sm font-medium mb-2">Retraction Statistics</div>
+                <div className="space-y-2">
+                  {retractionStats.totalRetractions > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-500">Retractions</span>
+                      <span className="font-semibold text-red-600 dark:text-red-400">
+                        {formatNumber(retractionStats.totalRetractions)}
+                      </span>
+                    </div>
+                  )}
+                  {retractionStats.totalConcerns > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-500">Expressions of Concern</span>
+                      <span className="font-semibold text-orange-600 dark:text-orange-400">
+                        {formatNumber(retractionStats.totalConcerns)}
+                      </span>
+                    </div>
+                  )}
+                  {retractionStats.totalCorrections > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-500">Corrections</span>
+                      <span className="font-semibold text-yellow-600 dark:text-yellow-400">
+                        {formatNumber(retractionStats.totalCorrections)}
+                      </span>
+                    </div>
+                  )}
+                  {retractionStats.totalReinstatements > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-500">Reinstatements</span>
+                      <span className="font-semibold text-green-600 dark:text-green-400">
+                        {formatNumber(retractionStats.totalReinstatements)}
+                      </span>
+                    </div>
+                  )}
+                  {retractionStats.retractionRate !== null && retractionStats.papersSince2010 && (
+                    <div className="flex items-center justify-between">
+                      <span
+                        className="text-sm text-gray-500 cursor-help border-b border-dotted border-gray-400"
+                        title={`Rate calculated as retractions / papers published since 2010 (${formatNumber(retractionStats.papersSince2010)} papers)`}
+                      >
+                        Retraction Rate
+                      </span>
+                      <span className="font-semibold">
+                        {retractionStats.retractionRate < 0.01
+                          ? "<0.01%"
+                          : `${retractionStats.retractionRate.toFixed(2)}%`}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-gray-400 mt-2">
+                  Based on <a href="https://retractionwatch.com" target="_blank" rel="noopener noreferrer" className="hover:underline">Retraction Watch</a> data.
+                  {retractionStats.firstRetractionYear && retractionStats.lastRetractionYear && (
+                    <span> Tracked {retractionStats.firstRetractionYear}–{retractionStats.lastRetractionYear}.</span>
+                  )}
                 </p>
               </div>
             )}

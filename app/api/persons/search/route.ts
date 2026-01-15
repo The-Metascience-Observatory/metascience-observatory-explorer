@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { errorResponse, validateQueryLength } from "@/lib/api-utils";
+import { errorResponse, validateQueryLength, parsePagination } from "@/lib/api-utils";
 import type { PersonSearchItem } from "@/lib/types";
 
 /**
@@ -178,14 +178,17 @@ export async function GET(request: NextRequest) {
 
   try {
     const db = getDb();
+    const { offset, limit } = parsePagination(searchParams, { limit: 50, maxLimit: 100 });
     const ftsQuery = buildFtsQuery(query);
 
     if (!ftsQuery) {
-      return NextResponse.json({ results: [] });
+      return NextResponse.json({ results: [], total: 0, offset: 0, limit, hasMore: false });
     }
 
     // Use FTS5 for fast full-text search, join with person_summary for full data
     // FTS5 is ~50x faster than LIKE on 100M rows
+    // Fetch more than needed to account for post-filtering
+    const fetchLimit = Math.min((offset + limit) * 3, 500);
     const stmt = db.prepare(`
       SELECT
         p.authorid,
@@ -198,18 +201,24 @@ export async function GET(request: NextRequest) {
       JOIN person_summary p ON f.authorid = p.authorid
       WHERE person_fts MATCH ?
       ORDER BY p.h_index DESC NULLS LAST
-      LIMIT 100
+      LIMIT ?
     `);
 
-    let results = stmt.all(ftsQuery) as PersonSearchItem[];
+    let results = stmt.all(ftsQuery, fetchLimit) as PersonSearchItem[];
 
     // Post-filter to ensure surname matches (FTS can match any word)
     results = filterAndRankResults(results, query);
 
-    // Return top 20
-    results = results.slice(0, 20);
+    const total = results.length;
+    const paginatedResults = results.slice(offset, offset + limit);
 
-    return NextResponse.json({ results });
+    return NextResponse.json({
+      results: paginatedResults,
+      total,
+      offset,
+      limit,
+      hasMore: offset + paginatedResults.length < total
+    });
   } catch (error) {
     // If FTS table doesn't exist, fall back to LIKE search
     if (error instanceof Error && error.message.includes("no such table: person_fts")) {
