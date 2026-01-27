@@ -12,6 +12,7 @@ import type {
   PersonDetails,
   PersonTrial,
   PersonRetractionStats,
+  PersonSelfCitations,
 } from "@/lib/types";
 
 export async function GET(
@@ -205,6 +206,35 @@ export async function GET(
       }
     }
 
+    // Get self-citation statistics
+    let selfCitations: PersonSelfCitations | undefined;
+    try {
+      const selfCitationRow = db
+        .prepare(
+          `SELECT
+             self_citation_count,
+             total_citation_count,
+             self_citation_rate
+           FROM person_self_citations
+           WHERE authorid = ?`
+        )
+        .get(authorid) as {
+          self_citation_count: number;
+          total_citation_count: number;
+          self_citation_rate: number | null;
+        } | undefined;
+
+      if (selfCitationRow) {
+        selfCitations = {
+          self_citation_count: selfCitationRow.self_citation_count,
+          total_citation_count: selfCitationRow.total_citation_count,
+          self_citation_rate: selfCitationRow.self_citation_rate,
+        };
+      }
+    } catch {
+      console.log("person_self_citations table not found or query failed, skipping");
+    }
+
     const response: PersonDetails = {
       summary,
       yearlyStats,
@@ -215,6 +245,7 @@ export async function GET(
       recentPublications,
       trials,
       retractionStats,
+      selfCitations,
     };
 
     return NextResponse.json(response);

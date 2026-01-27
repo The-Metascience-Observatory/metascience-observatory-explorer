@@ -10,7 +10,7 @@ import { ImpactFactorChart } from "@/components/ImpactFactorChart";
 import { FieldBadges } from "@/components/FieldBadges";
 import type { JournalDetails } from "@/lib/types";
 import { formatNumber } from "@/lib/utils";
-import { ArrowLeft, Loader2, Info } from "lucide-react";
+import { ArrowLeft, Loader2, Info, AlertTriangle, ExternalLink } from "lucide-react";
 
 // Format ISSN which may be a JSON array string or a plain string
 function formatIssn(issn: string | null): string | null {
@@ -95,7 +95,7 @@ export default function JournalDetailPage() {
     );
   }
 
-  const { summary, yearlyStats, fields, impactFactors, officialMetrics, retractionStats } = data;
+  const { summary, yearlyStats, fields, impactFactors, officialMetrics, retractionStats, hijackedInfo } = data;
 
   // Get most recent computed metrics
   const latestIF = impactFactors && impactFactors.length > 0
@@ -118,6 +118,42 @@ export default function JournalDetailPage() {
         {/* Left: Infobox */}
         <Card>
           <CardContent className="pt-6">
+            {/* Hijacked Journal Warning */}
+            {hijackedInfo && (
+              <div className="mb-4 bg-red-50 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="font-semibold text-red-800 dark:text-red-200">
+                      Hijacked Journal Warning
+                    </h3>
+                    <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                      This journal has been identified as hijacked by Retraction Watch.
+                      A hijacked journal uses the identity of a legitimate journal to deceive authors.
+                    </p>
+                    {hijackedInfo.original_title && (
+                      <p className="text-sm text-red-700 dark:text-red-300 mt-2">
+                        <strong>Original journal:</strong> {hijackedInfo.original_title}
+                        {hijackedInfo.original_url && (
+                          <> (<a href={hijackedInfo.original_url} target="_blank" rel="noopener noreferrer"
+                                className="underline hover:no-underline">legitimate site</a>)</>
+                        )}
+                      </p>
+                    )}
+                    <a
+                      href="https://retractionwatch.com/the-retraction-watch-hijacked-journal-checker"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-sm text-red-600 dark:text-red-400 hover:underline mt-2"
+                    >
+                      Learn more about hijacked journals
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Name */}
             <h1 className="text-xl font-bold mb-2 text-center">{summary.display_name}</h1>
 

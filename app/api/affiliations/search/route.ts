@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { errorResponse, validateQueryLength } from "@/lib/api-utils";
 import type { AffiliationSearchItem } from "@/lib/types";
+import { searchCaches, generateCacheKey } from "@/lib/search-cache";
+import { workerQuery } from "@/lib/worker-pool";
 
 /**
  * Server-side affiliation search using SQLite.
@@ -35,12 +37,18 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const db = getDb();
+    // Check cache first
+    const cacheKey = generateCacheKey(query);
+    const cached = searchCaches.affiliations.get(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached);
+    }
+
     const searchPattern = `%${query}%`;
 
     // Search by display_name, country_code, or type
     // Order by h_index to show most relevant institutions first
-    const stmt = db.prepare(`
+    const sql = `
       SELECT
         institution_id,
         display_name,
@@ -60,11 +68,14 @@ export async function GET(request: NextRequest) {
          OR LOWER(type) LIKE LOWER(?)
       ORDER BY h_index DESC NULLS LAST
       LIMIT 50
-    `);
+    `;
 
-    const results = stmt.all(searchPattern, searchPattern, searchPattern) as AffiliationSearchItem[];
+    const results = await workerQuery<AffiliationSearchItem>(sql, searchPattern, searchPattern, searchPattern);
 
-    return NextResponse.json({ results });
+    const response = { results };
+    searchCaches.affiliations.set(cacheKey, response);
+
+    return NextResponse.json(response);
   } catch (error) {
     return errorResponse(error, "affiliations/search");
   }

@@ -75,6 +75,16 @@ export interface JournalRetractionStats {
   lastRetractionYear: number | null;
 }
 
+// Hijacked journal information from Retraction Watch
+export interface HijackedJournalInfo {
+  hijacked_title: string;
+  hijacked_url: string | null;
+  hijacked_issn: string | null;
+  original_title: string | null;
+  original_issn: string | null;
+  original_url: string | null;
+}
+
 export interface JournalDetails {
   summary: JournalSummary;
   yearlyStats: JournalYearlyStats[];
@@ -82,6 +92,7 @@ export interface JournalDetails {
   impactFactors?: JournalImpactFactor[];      // Computed metrics
   officialMetrics?: JournalOfficialMetrics;   // From Scopus API
   retractionStats?: JournalRetractionStats;   // From Retraction Watch
+  hijackedInfo?: HijackedJournalInfo;         // From Retraction Watch hijacked journal checker
 }
 
 // Types for person/author data
@@ -166,6 +177,13 @@ export interface PersonRetractionStats {
   totalReinstatements: number;
 }
 
+// Self-citation statistics for authors
+export interface PersonSelfCitations {
+  self_citation_count: number;
+  total_citation_count: number;
+  self_citation_rate: number | null;
+}
+
 export interface PersonDetails {
   summary: PersonSummary;
   yearlyStats: PersonYearlyStats[];
@@ -176,6 +194,7 @@ export interface PersonDetails {
   recentPublications: PersonPublication[];
   trials?: PersonTrial[];
   retractionStats?: PersonRetractionStats;
+  selfCitations?: PersonSelfCitations;
 }
 
 // Types for affiliation/institution data

@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { MobileNav } from "@/components/MobileNav";
 import { Footer } from "@/components/Footer";
+import { VisitorTracker } from "@/components/VisitorTracker";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -54,6 +55,7 @@ export default function RootLayout({
         </header>
         <main>{children}</main>
         <Footer />
+        <VisitorTracker />
       </body>
     </html>
   );

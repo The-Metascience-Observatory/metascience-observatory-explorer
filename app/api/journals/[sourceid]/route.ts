@@ -10,6 +10,7 @@ import type {
   JournalOfficialMetrics,
   JournalRetractionStats,
   JournalDetails,
+  HijackedJournalInfo,
 } from "@/lib/types";
 
 export async function GET(
@@ -166,6 +167,38 @@ export async function GET(
       }
     }
 
+    // Get hijacked journal info from Retraction Watch
+    let hijackedInfo: HijackedJournalInfo | undefined;
+    try {
+      const hijackedRow = db.prepare(`
+        SELECT hijacked_title, hijacked_url, hijacked_issn,
+               original_title, original_issn, original_url
+        FROM hijacked_journals
+        WHERE sourceid = ?
+      `).get(sourceid) as {
+        hijacked_title: string;
+        hijacked_url: string | null;
+        hijacked_issn: string | null;
+        original_title: string | null;
+        original_issn: string | null;
+        original_url: string | null;
+      } | undefined;
+
+      if (hijackedRow) {
+        hijackedInfo = {
+          hijacked_title: hijackedRow.hijacked_title,
+          hijacked_url: hijackedRow.hijacked_url,
+          hijacked_issn: hijackedRow.hijacked_issn,
+          original_title: hijackedRow.original_title,
+          original_issn: hijackedRow.original_issn,
+          original_url: hijackedRow.original_url,
+        };
+      }
+    } catch (e) {
+      // Table may not exist yet
+      console.log("hijacked_journals table not found, skipping");
+    }
+
     const response: JournalDetails = {
       summary,
       yearlyStats,
@@ -173,6 +206,7 @@ export async function GET(
       impactFactors: impactFactors.length > 0 ? impactFactors : undefined,
       officialMetrics,
       retractionStats,
+      hijackedInfo,
     };
 
     return NextResponse.json(response);

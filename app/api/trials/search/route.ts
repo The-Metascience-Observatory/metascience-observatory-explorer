@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { errorResponse, validateQueryLength, parsePagination } from "@/lib/api-utils";
 import type { TrialSearchItem } from "@/lib/types";
+import { searchCaches, generateCacheKey } from "@/lib/search-cache";
+import { workerQuery, workerQueryOne } from "@/lib/worker-pool";
 
 /**
  * Server-side trial search using SQLite.
@@ -46,12 +48,20 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const db = getDb();
+    // Build cache key including all search parameters
+    const cacheParams: Record<string, string | number> = {
+      offset: 0,
+      limit: 0
+    };
+
     const { offset, limit } = parsePagination(searchParams, { limit: 50, maxLimit: 100 });
+    cacheParams.offset = offset;
+    cacheParams.limit = limit;
 
     // Parse phase filter (comma-separated list)
     const phasesParam = searchParams.get("phases");
     const phases = phasesParam ? phasesParam.split(",").filter(p => p) : null;
+    if (phasesParam) cacheParams.phases = phasesParam;
 
     // Check if query looks like an NCT ID (starts with NCT)
     const isNctQuery = query?.toUpperCase().startsWith("NCT");
@@ -85,20 +95,29 @@ export async function GET(request: NextRequest) {
       // Match intervention anywhere in the pipe-separated list (case-insensitive)
       interventionClause = "AND LOWER(ctg.interventions) LIKE LOWER(?)";
       interventionParams.push(`%${intervention}%`);
+      cacheParams.intervention = intervention;
+    }
+
+    // Check cache first
+    const cacheKey = generateCacheKey(query || intervention || '', cacheParams);
+    const cached = searchCaches.trials.get(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached);
     }
 
     if (intervention && !query) {
       // Intervention-only search (no text query)
       // Get total count
-      const countStmt = db.prepare(`
+      const countSql = `
         SELECT COUNT(*) as count
         FROM ctg_studies ctg
         WHERE ctg.interventions IS NOT NULL ${interventionClause} ${phaseClause}
-      `);
-      total = (countStmt.get(...interventionParams, ...phaseParams) as { count: number }).count;
+      `;
+      const countResult = await workerQueryOne<{ count: number }>(countSql, ...interventionParams, ...phaseParams);
+      total = countResult?.count ?? 0;
 
       // Search by intervention
-      const stmt = db.prepare(`
+      const sql = `
         SELECT
           ctg.nct_id,
           ctg.title,
@@ -112,21 +131,22 @@ export async function GET(request: NextRequest) {
         WHERE ctg.interventions IS NOT NULL ${interventionClause} ${phaseClause}
         ORDER BY ctg.enrollment DESC NULLS LAST
         LIMIT ? OFFSET ?
-      `);
-      results = stmt.all(...interventionParams, ...phaseParams, limit, offset) as TrialSearchItem[];
+      `;
+      results = await workerQuery<TrialSearchItem>(sql, ...interventionParams, ...phaseParams, limit, offset);
     } else if (isNctQuery) {
       const searchPattern = `${query!.toUpperCase()}%`;
 
       // Get total count
-      const countStmt = db.prepare(`
+      const countSql = `
         SELECT COUNT(*) as count
         FROM ctg_studies ctg
         WHERE ctg.nct_id LIKE ? ${interventionClause} ${phaseClause}
-      `);
-      total = (countStmt.get(searchPattern, ...interventionParams, ...phaseParams) as { count: number }).count;
+      `;
+      const countResult = await workerQueryOne<{ count: number }>(countSql, searchPattern, ...interventionParams, ...phaseParams);
+      total = countResult?.count ?? 0;
 
       // Search by NCT ID prefix match with pagination
-      const stmt = db.prepare(`
+      const sql = `
         SELECT
           ctg.nct_id,
           ctg.title,
@@ -140,21 +160,22 @@ export async function GET(request: NextRequest) {
         WHERE ctg.nct_id LIKE ? ${interventionClause} ${phaseClause}
         ORDER BY ctg.enrollment DESC NULLS LAST
         LIMIT ? OFFSET ?
-      `);
-      results = stmt.all(searchPattern, ...interventionParams, ...phaseParams, limit, offset) as TrialSearchItem[];
+      `;
+      results = await workerQuery<TrialSearchItem>(sql, searchPattern, ...interventionParams, ...phaseParams, limit, offset);
     } else {
       const searchPattern = `%${query}%`;
 
       // Get total count
-      const countStmt = db.prepare(`
+      const countSql = `
         SELECT COUNT(*) as count
         FROM ctg_studies ctg
         WHERE LOWER(ctg.title) LIKE LOWER(?) ${interventionClause} ${phaseClause}
-      `);
-      total = (countStmt.get(searchPattern, ...interventionParams, ...phaseParams) as { count: number }).count;
+      `;
+      const countResult = await workerQueryOne<{ count: number }>(countSql, searchPattern, ...interventionParams, ...phaseParams);
+      total = countResult?.count ?? 0;
 
       // Search by title with pagination
-      const stmt = db.prepare(`
+      const sql = `
         SELECT
           ctg.nct_id,
           ctg.title,
@@ -168,18 +189,23 @@ export async function GET(request: NextRequest) {
         WHERE LOWER(ctg.title) LIKE LOWER(?) ${interventionClause} ${phaseClause}
         ORDER BY ctg.enrollment DESC NULLS LAST
         LIMIT ? OFFSET ?
-      `);
-      results = stmt.all(searchPattern, ...interventionParams, ...phaseParams, limit, offset) as TrialSearchItem[];
+      `;
+      results = await workerQuery<TrialSearchItem>(sql, searchPattern, ...interventionParams, ...phaseParams, limit, offset);
     }
 
-    return NextResponse.json({
+    const response = {
       results,
       total,
       offset,
       limit,
       hasMore: offset + results.length < total,
       intervention: intervention || undefined
-    });
+    };
+
+    // Cache the response
+    searchCaches.trials.set(cacheKey, response);
+
+    return NextResponse.json(response);
   } catch (error) {
     return errorResponse(error, "trials/search");
   }

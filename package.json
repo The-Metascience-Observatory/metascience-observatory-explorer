@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "./scripts/start-with-cache.sh",
+    "start:no-warm": "next start",
+    "warm-cache": "curl -s http://localhost:3000/api/cache/warm",
     "lint": "next lint"
   },
   "dependencies": {
