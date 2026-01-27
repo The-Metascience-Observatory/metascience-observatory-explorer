@@ -11,6 +11,14 @@ export function getDb(): Database.Database {
   if (!db) {
     const dbPath = path.join(process.cwd(), "data", "journals.db");
     db = new Database(dbPath, { readonly: true, fileMustExist: true });
+
+    // Performance tuning for 24GB+ RAM systems
+    // Allocate 8GB cache for this database (1/3 of available RAM)
+    db.pragma('cache_size = -8000000'); // Negative = KB, so -8000000 = 8GB
+    db.pragma('mmap_size = 8589934592'); // 8GB memory-mapped I/O
+    db.pragma('temp_store = MEMORY'); // Use RAM for temporary tables
+    db.pragma('synchronous = NORMAL'); // Faster with acceptable safety (readonly anyway)
+    db.pragma('journal_mode = WAL'); // Better concurrency
   }
   return db;
 }
@@ -220,4 +228,52 @@ export function setCachedOrcid(orcid: string, data: unknown): void {
   } catch (error) {
     console.error('Failed to cache ORCID data:', error);
   }
+}
+
+// Analytics database for visitor tracking
+let analyticsDb: Database.Database | null = null;
+
+export function getAnalyticsDb(): Database.Database {
+  if (!analyticsDb) {
+    const dbPath = path.join(process.cwd(), "data", "analytics.db");
+    analyticsDb = new Database(dbPath);
+
+    // Initialize visitor_logs table
+    analyticsDb.exec(`
+      CREATE TABLE IF NOT EXISTS visitor_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ip TEXT NOT NULL,
+        timestamp INTEGER NOT NULL,
+        path TEXT NOT NULL,
+        user_agent TEXT,
+        country TEXT,
+        city TEXT,
+        lat REAL,
+        lon REAL,
+        os TEXT,
+        device_type TEXT,
+        browser TEXT
+      )
+    `);
+
+    // Indexes for efficient querying
+    analyticsDb.exec(`
+      CREATE INDEX IF NOT EXISTS idx_visitor_timestamp ON visitor_logs(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_visitor_ip ON visitor_logs(ip);
+      CREATE INDEX IF NOT EXISTS idx_visitor_country ON visitor_logs(country);
+    `);
+
+    // IP geolocation cache table
+    analyticsDb.exec(`
+      CREATE TABLE IF NOT EXISTS ip_geo_cache (
+        ip TEXT PRIMARY KEY,
+        country TEXT,
+        city TEXT,
+        lat REAL,
+        lon REAL,
+        cached_at INTEGER NOT NULL
+      )
+    `);
+  }
+  return analyticsDb;
 }

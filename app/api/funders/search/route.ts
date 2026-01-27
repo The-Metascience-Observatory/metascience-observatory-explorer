@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { errorResponse, validateQueryLength } from "@/lib/api-utils";
 import type { FunderSearchItem } from "@/lib/types";
+import { searchCaches, generateCacheKey } from "@/lib/search-cache";
+import { workerQuery } from "@/lib/worker-pool";
 
 /**
  * Check if the funder_summary table exists in the database.
@@ -67,11 +69,18 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Check cache first
+    const cacheKey = generateCacheKey(query);
+    const cached = searchCaches.funders.get(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached);
+    }
+
     const searchPattern = `%${query}%`;
 
     // Search by display_name or country_code
     // Order by works_count to show most relevant funders first
-    const stmt = db.prepare(`
+    const sql = `
       SELECT
         funderid,
         display_name,
@@ -84,11 +93,14 @@ export async function GET(request: NextRequest) {
          OR LOWER(country_code) LIKE LOWER(?)
       ORDER BY works_count DESC NULLS LAST
       LIMIT 50
-    `);
+    `;
 
-    const results = stmt.all(searchPattern, searchPattern) as FunderSearchItem[];
+    const results = await workerQuery<FunderSearchItem>(sql, searchPattern, searchPattern);
 
-    return NextResponse.json({ results });
+    const response = { results };
+    searchCaches.funders.set(cacheKey, response);
+
+    return NextResponse.json(response);
   } catch (error) {
     return errorResponse(error, "funders/search");
   }

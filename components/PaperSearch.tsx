@@ -50,16 +50,28 @@ export function PaperSearch({ compact = false }: PaperSearchProps) {
     loadCount();
   }, []);
 
-  // Debounce query
+  // Handle input changes - just update state, no immediate redirect
+  const handleInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setQuery(e.target.value);
+    },
+    []
+  );
+
+  // Debounce query for non-compact mode
   useEffect(() => {
+    if (compact) return; // Skip search in compact mode
+
     const timer = setTimeout(() => {
       setDebouncedQuery(query);
     }, 300);
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, compact]);
 
-  // Server-side search
+  // Server-side search (only for non-compact mode)
   useEffect(() => {
+    if (compact) return; // Skip search in compact mode
+
     if (!debouncedQuery || debouncedQuery.length < 3) {
       setResults([]);
       setIndexMissing(false);
@@ -91,14 +103,7 @@ export function PaperSearch({ compact = false }: PaperSearchProps) {
       }
     }
     search();
-  }, [debouncedQuery]);
-
-  const handleInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      setQuery(e.target.value);
-    },
-    []
-  );
+  }, [debouncedQuery, compact]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {

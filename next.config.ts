@@ -24,7 +24,6 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  output: "standalone",
   serverExternalPackages: ["better-sqlite3"],
   // Exclude data directory from build tracing (databases are mounted at runtime)
   outputFileTracingExcludes: {

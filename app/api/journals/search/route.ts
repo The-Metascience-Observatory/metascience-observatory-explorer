@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { errorResponse, validateQueryLength } from "@/lib/api-utils";
 import type { JournalSearchItem } from "@/lib/types";
+import { searchCaches, generateCacheKey } from "@/lib/search-cache";
+import { workerQuery } from "@/lib/worker-pool";
 
 /**
  * Server-side journal search using SQLite.
@@ -35,12 +37,18 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const db = getDb();
+    // Check cache first
+    const cacheKey = generateCacheKey(query);
+    const cached = searchCaches.journals.get(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached);
+    }
+
     const searchPattern = `%${query}%`;
 
     // Search by display_name, issn, or publisher
     // Order by total_papers to show most relevant journals first
-    const stmt = db.prepare(`
+    const sql = `
       SELECT
         sourceid,
         display_name,
@@ -62,11 +70,14 @@ export async function GET(request: NextRequest) {
          OR LOWER(publisher) LIKE LOWER(?)
       ORDER BY total_papers DESC NULLS LAST
       LIMIT 50
-    `);
+    `;
 
-    const results = stmt.all(searchPattern, searchPattern, searchPattern) as JournalSearchItem[];
+    const results = await workerQuery<JournalSearchItem>(sql, searchPattern, searchPattern, searchPattern);
 
-    return NextResponse.json({ results });
+    const response = { results };
+    searchCaches.journals.set(cacheKey, response);
+
+    return NextResponse.json(response);
   } catch (error) {
     return errorResponse(error, "journals/search");
   }

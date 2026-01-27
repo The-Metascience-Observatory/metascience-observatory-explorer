@@ -25,7 +25,14 @@ import {
   FlaskConical,
   GraduationCap,
   Briefcase,
+  HelpCircle,
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { PersonFunding, PersonAffiliation, OrcidData, PersonPublication } from "@/lib/types";
 
 // Check if an institution is likely a university (vs lab/institute)
@@ -892,7 +899,7 @@ export default function PersonDetailPage() {
     );
   }
 
-  const { summary, yearlyStats, affiliations, funding, twitter, tweets, trials, retractionStats } = data;
+  const { summary, yearlyStats, affiliations, funding, twitter, tweets, trials, retractionStats, selfCitations } = data;
 
   // Parse and clean up alternative names
   const getAlternativeNames = (): string[] => {
@@ -1036,6 +1043,34 @@ export default function PersonDetailPage() {
                   </span>
                   <span className="font-semibold">{summary.avg_c10.toFixed(1)}</span>
                 </div>
+              )}
+              {selfCitations && selfCitations.self_citation_rate != null && (
+                <TooltipProvider>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1">
+                      <span className="text-sm text-gray-500">Self-citation rate</span>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <HelpCircle className="h-3 w-3 text-gray-400" />
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="max-w-xs">
+                          <p className="text-xs">
+                            Percentage of citations from the author&apos;s own papers.
+                            This author has {formatNumber(selfCitations.self_citation_count)} self-citations
+                            out of {formatNumber(selfCitations.total_citation_count)} total citations.
+                          </p>
+                          <p className="text-xs mt-1 text-gray-400">
+                            Typical rates: 5-25% depending on field.
+                            Biology/Medicine: 8-13%, Physics: ~20%, Economics: ~4%.
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <span className="font-semibold">
+                      {(selfCitations.self_citation_rate * 100).toFixed(2)}%
+                    </span>
+                  </div>
+                </TooltipProvider>
               )}
               {summary.orcid && (
                 <div className="flex items-center justify-between">

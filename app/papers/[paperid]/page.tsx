@@ -971,7 +971,7 @@ export default function PaperDetailPage() {
                 <p className={`text-sm text-gray-700 dark:text-gray-300 ${showFullAbstract ? "" : "line-clamp-[15]"}`}>
                   {abstract}
                 </p>
-                {abstract.length > 1250 && (
+                {abstract.length > 600 && (
                   <button
                     onClick={() => setShowFullAbstract(!showFullAbstract)}
                     className="text-blue-600 hover:text-blue-800 text-sm mt-2"

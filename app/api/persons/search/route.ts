@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { errorResponse, validateQueryLength, parsePagination } from "@/lib/api-utils";
 import type { PersonSearchItem } from "@/lib/types";
+import { searchCaches, generateCacheKey } from "@/lib/search-cache";
+import { workerQuery } from "@/lib/worker-pool";
 
 /**
  * Sanitize a word for FTS5 query.
@@ -177,7 +179,6 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const db = getDb();
     const { offset, limit } = parsePagination(searchParams, { limit: 50, maxLimit: 100 });
     const ftsQuery = buildFtsQuery(query);
 
@@ -185,11 +186,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ results: [], total: 0, offset: 0, limit, hasMore: false });
     }
 
+    // Check cache first
+    const cacheKey = generateCacheKey(ftsQuery, { offset, limit });
+    const cached = searchCaches.persons.get(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached);
+    }
+
     // Use FTS5 for fast full-text search, join with person_summary for full data
     // FTS5 is ~50x faster than LIKE on 100M rows
     // Fetch more than needed to account for post-filtering
     const fetchLimit = Math.min((offset + limit) * 3, 500);
-    const stmt = db.prepare(`
+    const sql = `
       SELECT
         p.authorid,
         p.display_name,
@@ -202,9 +210,9 @@ export async function GET(request: NextRequest) {
       WHERE person_fts MATCH ?
       ORDER BY p.h_index DESC NULLS LAST
       LIMIT ?
-    `);
+    `;
 
-    let results = stmt.all(ftsQuery, fetchLimit) as PersonSearchItem[];
+    let results = await workerQuery<PersonSearchItem>(sql, ftsQuery, fetchLimit);
 
     // Post-filter to ensure surname matches (FTS can match any word)
     results = filterAndRankResults(results, query);
@@ -212,13 +220,18 @@ export async function GET(request: NextRequest) {
     const total = results.length;
     const paginatedResults = results.slice(offset, offset + limit);
 
-    return NextResponse.json({
+    const response = {
       results: paginatedResults,
       total,
       offset,
       limit,
       hasMore: offset + paginatedResults.length < total
-    });
+    };
+
+    // Cache the response
+    searchCaches.persons.set(cacheKey, response);
+
+    return NextResponse.json(response);
   } catch (error) {
     // If FTS table doesn't exist, fall back to LIKE search
     if (error instanceof Error && error.message.includes("no such table: person_fts")) {
@@ -233,7 +246,6 @@ export async function GET(request: NextRequest) {
 // Fallback LIKE search if FTS5 table doesn't exist
 async function fallbackLikeSearch(query: string): Promise<NextResponse> {
   try {
-    const db = getDb();
     const words = query.trim().toLowerCase().split(/\s+/).filter(w => w.length > 0);
     if (words.length === 0) {
       return NextResponse.json({ results: [] });
@@ -243,7 +255,7 @@ async function fallbackLikeSearch(query: string): Promise<NextResponse> {
     const surnamePattern = `% ${surname}%`;
     const surnamePatternAlt = `${surname}%`;
 
-    const stmt = db.prepare(`
+    const sql = `
       SELECT
         authorid,
         display_name,
@@ -255,9 +267,9 @@ async function fallbackLikeSearch(query: string): Promise<NextResponse> {
       WHERE LOWER(display_name) LIKE ? OR LOWER(display_name) LIKE ?
       ORDER BY h_index DESC NULLS LAST
       LIMIT 100
-    `);
+    `;
 
-    let results = stmt.all(surnamePattern, surnamePatternAlt) as PersonSearchItem[];
+    let results = await workerQuery<PersonSearchItem>(sql, surnamePattern, surnamePatternAlt);
     results = filterAndRankResults(results, query);
     results = results.slice(0, 20);
 
