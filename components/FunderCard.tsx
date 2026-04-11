@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import type { FunderSearchItem } from "@/lib/types";
@@ -11,7 +12,7 @@ interface FunderCardProps {
   compact?: boolean;
 }
 
-export function FunderCard({ funder, compact = false }: FunderCardProps) {
+export const FunderCard = memo(function FunderCard({ funder, compact = false }: FunderCardProps) {
   return (
     <Link href={`/funders/${funder.funderid}`}>
       <Card className={`${compact ? "p-2" : "p-4"} hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors cursor-pointer`}>
@@ -49,4 +50,4 @@ export function FunderCard({ funder, compact = false }: FunderCardProps) {
       </Card>
     </Link>
   );
-}
+});

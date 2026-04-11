@@ -3,11 +3,14 @@
 
 PORT=${PORT:-3000}
 
-# Cleanup function to kill the server on exit
+# Cleanup function to kill the server and all child processes on exit
 cleanup() {
   echo ""
-  echo "Shutting down server (PID: $SERVER_PID)..."
+  echo "Shutting down server..."
   if [ -n "$SERVER_PID" ]; then
+    # Kill the entire process group (server + worker children)
+    kill -- -$SERVER_PID 2>/dev/null
+    # Fallback: also kill by PID in case process group kill missed it
     kill $SERVER_PID 2>/dev/null
     wait $SERVER_PID 2>/dev/null
   fi

@@ -6,6 +6,7 @@ export interface JournalSearchItem {
   issn: string | null;
   publisher: string | null;
   is_oa: boolean | null;
+  scopus_only?: boolean;  // True if this is a Scopus-only journal (no OpenAlex data)
 }
 
 export interface JournalSummary {
@@ -85,6 +86,46 @@ export interface HijackedJournalInfo {
   original_url: string | null;
 }
 
+// Journal enrichment data from Scopus and DOAJ
+export interface JournalEnrichment {
+  scopus_source_id: string | null;
+  publisher_scopus: string | null;
+  license_type: string | null;           // CC-BY, CC-BY-NC, etc.
+  apc_amount: number | null;             // Article processing charge amount
+  apc_currency: string | null;           // USD, EUR, etc.
+  apc_year: number | null;               // Year of APC data (2025)
+  languages: string[] | null;            // ISO language codes
+  is_discontinued: boolean;
+  discontinued_for_quality: boolean;
+  asjc_codes: string[] | null;           // Scopus subject codes
+  lcc_codes: string[] | null;            // Library of Congress codes
+  subjects_doaj: string | null;          // DOAJ subject keywords
+  data_source: 'scopus' | 'doaj' | 'both' | null;
+  // New fields from Scopus
+  eissn: string | null;                  // Electronic ISSN
+  coverage: string | null;               // Coverage dates (e.g., "1959-2001")
+  source_type: string | null;            // Journal, Book Series, Trade Journal, etc.
+  is_medline: boolean;                   // From Medline database
+  articles_in_press: boolean;            // Includes articles in press
+  title_history: string | null;          // "Continued as" / "Formerly known as"
+  related_titles: string[] | null;       // Related journal names
+  top_level_categories: {                // Top-level subject categories
+    life_sciences?: boolean;
+    social_sciences?: boolean;
+    physical_sciences?: boolean;
+    health_sciences?: boolean;
+  } | null;
+}
+
+// Predatory journal information from Beall's List
+export interface PredatoryInfo {
+  source: string;           // 'bealls_journal' or 'bealls_publisher'
+  name: string;             // matched name from predatory list
+  publisher: string | null; // publisher name (if publisher-level match)
+  url: string | null;       // URL from predatory list
+  confidence: string;       // 'exact' or 'publisher'
+}
+
 export interface JournalDetails {
   summary: JournalSummary;
   yearlyStats: JournalYearlyStats[];
@@ -93,6 +134,8 @@ export interface JournalDetails {
   officialMetrics?: JournalOfficialMetrics;   // From Scopus API
   retractionStats?: JournalRetractionStats;   // From Retraction Watch
   hijackedInfo?: HijackedJournalInfo;         // From Retraction Watch hijacked journal checker
+  enrichment?: JournalEnrichment;             // From Scopus/DOAJ enrichment data
+  predatoryInfo?: PredatoryInfo;              // From Beall's List
 }
 
 // Types for person/author data
@@ -543,4 +586,46 @@ export interface OrcidData {
   education: OrcidEducation[];
   employment: OrcidEmployment[];
   cachedAt?: number;
+}
+
+// Types for MeSH data
+
+export interface MeshTerm {
+  meshUi: string;
+  meshName: string;
+  isMajor: boolean;
+  qualifierName: string | null;
+}
+
+export interface MeshSummary {
+  meshUi: string;
+  meshName: string;
+  totalPapers: number;
+  totalCitations: number;
+  scopeNote: string | null;
+}
+
+export interface MeshRelatedTerm {
+  meshUi: string;
+  meshName: string;
+}
+
+export interface MeshYearlyStats {
+  year: number;
+  paper_count: number;
+}
+
+export interface MeshTopJournal {
+  sourceid: string;
+  sourceName: string;
+  paperCount: number;
+}
+
+export interface MeshDetails {
+  summary: MeshSummary;
+  treeNumbers: string[];
+  parentTerms: MeshRelatedTerm[];
+  childTerms: MeshRelatedTerm[];
+  yearlyStats: MeshYearlyStats[];
+  topJournals: MeshTopJournal[];
 }

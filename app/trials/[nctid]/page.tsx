@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CitationsChart } from "@/components/CitationsChart";
+import { PaperTitle } from "@/components/PaperTitle";
 import {
   Tooltip,
   TooltipContent,
@@ -438,7 +439,7 @@ export default function TrialDetailPage() {
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium line-clamp-2">{paper.title || "Untitled"}</div>
+                          <div className="font-medium line-clamp-2">{paper.title ? <PaperTitle title={paper.title} /> : "Untitled"}</div>
                           <div className="text-sm text-gray-500 mt-1">{paper.year && <span>{paper.year}</span>}</div>
                         </div>
                         <div className="text-right flex-shrink-0 tabular-nums">
@@ -484,7 +485,7 @@ export default function TrialDetailPage() {
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium line-clamp-2">{paper.title || "Untitled"}</div>
+                          <div className="font-medium line-clamp-2">{paper.title ? <PaperTitle title={paper.title} /> : "Untitled"}</div>
                           <div className="text-sm text-gray-500 mt-1">{paper.year && <span>{paper.year}</span>}</div>
                         </div>
                         <div className="text-right flex-shrink-0 tabular-nums">
@@ -530,7 +531,7 @@ export default function TrialDetailPage() {
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium line-clamp-2">{paper.title || "Untitled"}</div>
+                          <div className="font-medium line-clamp-2">{paper.title ? <PaperTitle title={paper.title} /> : "Untitled"}</div>
                           <div className="text-sm text-gray-500 mt-1">{paper.year && <span>{paper.year}</span>}</div>
                         </div>
                         <div className="text-right flex-shrink-0 tabular-nums">
@@ -576,7 +577,7 @@ export default function TrialDetailPage() {
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium line-clamp-2">{paper.title || "Untitled"}</div>
+                          <div className="font-medium line-clamp-2">{paper.title ? <PaperTitle title={paper.title} /> : "Untitled"}</div>
                           <div className="text-sm text-gray-500 mt-1">{paper.year && <span>{paper.year}</span>}</div>
                         </div>
                         <div className="text-right flex-shrink-0 tabular-nums">

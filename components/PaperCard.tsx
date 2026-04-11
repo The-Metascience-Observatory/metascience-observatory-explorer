@@ -3,6 +3,7 @@
 import { memo } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
+import { PaperTitle } from "@/components/PaperTitle";
 import type { PaperSearchItem } from "@/lib/types";
 import { FileText } from "lucide-react";
 import { formatNumber } from "@/lib/utils";
@@ -24,7 +25,9 @@ export const PaperCard = memo(function PaperCard({ paper, compact = false }: Pap
           )}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <h3 className={`${compact ? "text-sm" : ""} font-medium line-clamp-2`}>{paper.title}</h3>
+              <h3 className={`${compact ? "text-sm" : ""} font-medium line-clamp-2`}>
+                <PaperTitle title={paper.title} />
+              </h3>
               {!compact && paper.cited_by_count >= 100 && (
                 <span className="flex-shrink-0 px-1.5 py-0.5 text-xs bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 rounded">
                   {formatNumber(paper.cited_by_count)} cites

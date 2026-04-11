@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { AffiliationCard } from "@/components/AffiliationCard";
 import type { AffiliationSearchItem } from "@/lib/types";
+import { ENTITY_COUNTS } from "@/lib/counts";
 import { Search, Loader2 } from "lucide-react";
 
 interface AffiliationSearchProps {
@@ -21,32 +22,9 @@ interface SearchResponse {
 export function AffiliationSearch({ compact = false }: AffiliationSearchProps) {
   const router = useRouter();
   const [results, setResults] = useState<AffiliationSearchItem[]>([]);
-  const [totalAffiliations, setTotalAffiliations] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
-
-  // Load total count on mount
-  useEffect(() => {
-    async function loadCount() {
-      try {
-        const res = await fetch("/api/affiliations/search");
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data: SearchResponse = await res.json();
-        if (data.error) {
-          throw new Error(data.error);
-        }
-        setTotalAffiliations(data.total ?? null);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Failed to connect to database");
-      } finally {
-        setInitialLoading(false);
-      }
-    }
-    loadCount();
-  }, []);
 
   // Debounce query
   useEffect(() => {
@@ -73,9 +51,7 @@ export function AffiliationSearch({ compact = false }: AffiliationSearchProps) {
           throw new Error(data.error);
         }
         setResults(data.results ?? []);
-        setError(null);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Search failed");
+      } catch {
         setResults([]);
       } finally {
         setLoading(false);
@@ -100,29 +76,12 @@ export function AffiliationSearch({ compact = false }: AffiliationSearchProps) {
     [query, router]
   );
 
-  if (initialLoading) {
-    return (
-      <div className={`flex items-center justify-center ${compact ? "py-4" : "py-12"}`}>
-        <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
-        <span className="ml-2 text-sm text-gray-500">Loading...</span>
-      </div>
-    );
-  }
-
-  if (error && !results.length && !query) {
-    return (
-      <div className={`text-center ${compact ? "py-4" : "py-12"}`}>
-        <p className="text-red-600 text-sm">Error: {error}</p>
-      </div>
-    );
-  }
-
   return (
     <div className="w-full">
       {/* Subtitle with count */}
-      {compact && totalAffiliations && (
+      {compact && (
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-          Search through {totalAffiliations.toLocaleString()} institutions.
+          Search through {ENTITY_COUNTS.affiliations.toLocaleString()} institutions
         </p>
       )}
 
@@ -166,7 +125,7 @@ export function AffiliationSearch({ compact = false }: AffiliationSearchProps) {
 
       {!compact && query.length === 0 && (
         <div className="mt-6 text-center text-gray-500">
-          <p>Search through {totalAffiliations ? totalAffiliations.toLocaleString() : "..."} institutions</p>
+          <p>Search through {ENTITY_COUNTS.affiliations.toLocaleString()} institutions</p>
           <p className="text-sm mt-1">
             Search for universities, companies, hospitals, and research organizations
           </p>

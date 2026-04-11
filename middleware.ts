@@ -12,6 +12,8 @@ const requestCounts = new Map<string, { count: number; windowStart: number }>();
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
 const RATE_LIMIT_MAX = 1000; // max requests per window per IP (high to allow citation-heavy pages)
 const RATE_LIMIT_MAX_SEARCH = 120; // stricter limit for search endpoints
+let requestCounter = 0;
+const CLEANUP_INTERVAL = 1000;
 
 // Track suspicious patterns
 const suspiciousPatterns = [
@@ -56,11 +58,11 @@ export function middleware(request: NextRequest) {
   const query = request.nextUrl.searchParams.get("q");
   const suspiciousMatch = detectSuspiciousInput(pathname + searchParams, query);
   if (suspiciousMatch) {
-    console.error(`${RED}[${timestamp}] [SECURITY] [${country}] ${ip} -> SUSPICIOUS REQUEST detected${RESET}`);
+    console.error(`${RED}[${timestamp}] [SECURITY] [${country}] ${ip} -> SUSPICIOUS REQUEST blocked${RESET}`);
     console.error(`${RED}  Pattern: ${suspiciousMatch}${RESET}`);
     console.error(`${RED}  URL: ${pathname}${searchParams}${RESET}`);
     console.error(`${RED}  User-Agent: ${userAgent}${RESET}`);
-    // Don't block - just log for now (the sanitization will handle it)
+    return new NextResponse('Bad Request', { status: 400 });
   }
 
   // Rate limiting check
@@ -95,8 +97,10 @@ export function middleware(request: NextRequest) {
     requestCounts.set(ip, { count: 1, windowStart: now });
   }
 
-  // Clean up old entries periodically (every ~1000 requests)
-  if (Math.random() < 0.001) {
+  // Clean up old entries every 1000 requests
+  requestCounter++;
+  if (requestCounter >= CLEANUP_INTERVAL) {
+    requestCounter = 0;
     const cutoff = now - RATE_LIMIT_WINDOW * 2;
     for (const [key, value] of requestCounts.entries()) {
       if (value.windowStart < cutoff) {

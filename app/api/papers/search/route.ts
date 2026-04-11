@@ -120,13 +120,11 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(response);
   } catch (error) {
-    // If FTS table doesn't exist, return informative message
-    if (error instanceof Error && error.message.includes("no such table: paper_title_fts")) {
-      console.log("paper_title_fts table not found - FTS index needs to be created");
+    if (error instanceof Error && error.message.includes("no such table")) {
+      console.error("Search index not available:", error.message);
       return NextResponse.json({
         results: [],
-        message: "Paper search index not available. Run CREATE VIRTUAL TABLE paper_title_fts to enable.",
-        indexRequired: true
+        message: "Search temporarily unavailable.",
       });
     }
 

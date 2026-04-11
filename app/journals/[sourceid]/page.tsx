@@ -44,6 +44,8 @@ export default function JournalDetailPage() {
   const [data, setData] = useState<JournalDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [meshTerms, setMeshTerms] = useState<{ meshUi: string; meshName: string; paperCount: number }[]>([]);
+  const [showAllMesh, setShowAllMesh] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -62,6 +64,22 @@ export default function JournalDetailPage() {
       }
     }
     fetchData();
+  }, [sourceid]);
+
+  // Lazy load MeSH terms
+  useEffect(() => {
+    async function fetchMesh() {
+      try {
+        const res = await fetch(`/api/journals/${sourceid}/mesh`);
+        if (res.ok) {
+          const data = await res.json();
+          setMeshTerms(data.meshTerms || []);
+        }
+      } catch (e) {
+        console.error("Failed to fetch MeSH terms:", e);
+      }
+    }
+    fetchMesh();
   }, [sourceid]);
 
   if (loading) {
@@ -95,7 +113,7 @@ export default function JournalDetailPage() {
     );
   }
 
-  const { summary, yearlyStats, fields, impactFactors, officialMetrics, retractionStats, hijackedInfo } = data;
+  const { summary, yearlyStats, fields, impactFactors, officialMetrics, retractionStats, hijackedInfo, enrichment, predatoryInfo } = data;
 
   // Get most recent computed metrics
   const latestIF = impactFactors && impactFactors.length > 0
@@ -118,6 +136,30 @@ export default function JournalDetailPage() {
         {/* Left: Infobox */}
         <Card>
           <CardContent className="pt-6">
+            {/* Discontinued Journal Warning */}
+            {enrichment?.is_discontinued && (
+              <div className="mb-4 bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-6 w-6 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="font-semibold text-amber-800 dark:text-amber-200">
+                      Discontinued Journal
+                    </h3>
+                    <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                      {enrichment.discontinued_for_quality
+                        ? "This journal has been discontinued by Scopus due to quality issues."
+                        : "This journal is no longer active in Scopus."}
+                    </p>
+                    {enrichment.coverage && (
+                      <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
+                        Indexed in Scopus: {enrichment.coverage}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Hijacked Journal Warning */}
             {hijackedInfo && (
               <div className="mb-4 bg-red-50 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-lg p-4">
@@ -154,10 +196,49 @@ export default function JournalDetailPage() {
               </div>
             )}
 
+            {/* Predatory Journal Warning */}
+            {predatoryInfo && (
+              <div className="mb-4 bg-orange-50 dark:bg-orange-900/30 border border-orange-300 dark:border-orange-700 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-6 w-6 text-orange-600 dark:text-orange-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="font-semibold text-orange-800 dark:text-orange-200">
+                      {predatoryInfo.confidence === 'exact'
+                        ? "Potential Predatory Journal"
+                        : "Published by Potential Predatory Publisher"}
+                    </h3>
+                    <p className="text-sm text-orange-700 dark:text-orange-300 mt-1">
+                      {predatoryInfo.confidence === 'exact'
+                        ? "This journal appears on Beall\u2019s List of potential predatory journals."
+                        : <>This journal&apos;s publisher (<strong>{predatoryInfo.publisher}</strong>) appears on Beall&apos;s List of potential predatory publishers.</>}
+                    </p>
+                    <a
+                      href="https://beallslist.net/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-sm text-orange-600 dark:text-orange-400 hover:underline mt-2"
+                    >
+                      Learn more about Beall&apos;s List
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Name */}
             <h1 className="text-xl font-bold mb-2 text-center">{summary.display_name}</h1>
 
-            {/* Publisher and Open Access badge */}
+            {/* Source type badge (if not a standard Journal) */}
+            {enrichment?.source_type && enrichment.source_type !== 'Journal' && (
+              <div className="text-center mb-2">
+                <span className="inline-flex px-2 py-0.5 text-xs rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+                  {enrichment.source_type}
+                </span>
+              </div>
+            )}
+
+            {/* Publisher and badges */}
             <p className="text-sm text-gray-500 text-center mb-1">
               {summary.publisher}
               {summary.publisher && ' · '}
@@ -165,6 +246,9 @@ export default function JournalDetailPage() {
                 <span className="text-green-700 dark:text-green-400">Open Access</span>
               ) : (
                 <span className="text-gray-400">Not Open Access</span>
+              )}
+              {enrichment?.is_medline && (
+                <span className="ml-2 text-blue-600 dark:text-blue-400">· Medline</span>
               )}
             </p>
             {/* Website URL */}
@@ -192,18 +276,22 @@ export default function JournalDetailPage() {
                 <span className="text-sm text-gray-500">Total Citations</span>
                 <span className="font-semibold">{formatNumber(summary.total_citations)}</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">First Year</span>
-                <span className="font-semibold">{summary.first_year || "—"}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">Last Year</span>
-                <span className="font-semibold">{summary.last_year || "—"}</span>
-              </div>
+              {(summary.first_year || summary.last_year) && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-500">Years Active</span>
+                  <span className="font-semibold">{summary.first_year || "?"}–{summary.last_year || "?"}</span>
+                </div>
+              )}
               {formatIssn(summary.issn) && (
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-500">ISSN</span>
                   <span className="font-semibold">{formatIssn(summary.issn)}</span>
+                </div>
+              )}
+              {enrichment?.eissn && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-500">EISSN</span>
+                  <span className="font-semibold">{enrichment.eissn}</span>
                 </div>
               )}
             </div>
@@ -351,6 +439,103 @@ export default function JournalDetailPage() {
                 </p>
               </div>
             )}
+
+            {/* Publishing Details from Scopus/DOAJ */}
+            {enrichment && (enrichment.license_type || enrichment.apc_amount || (enrichment.languages && enrichment.languages.length > 0)) && (
+              <div className="border-t pt-4">
+                <div className="text-sm font-medium mb-2">Publishing Details</div>
+                <div className="space-y-2">
+                  {enrichment.license_type && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-500">License</span>
+                      <span className="font-semibold">{enrichment.license_type}</span>
+                    </div>
+                  )}
+                  {enrichment.apc_amount !== null && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-500">APC</span>
+                      <span className="font-semibold">
+                        {enrichment.apc_currency === 'USD' ? '$' : ''}
+                        {enrichment.apc_currency === 'EUR' ? '€' : ''}
+                        {enrichment.apc_currency === 'GBP' ? '£' : ''}
+                        {formatNumber(enrichment.apc_amount)}
+                        {enrichment.apc_currency && !['USD', 'EUR', 'GBP'].includes(enrichment.apc_currency) ? ` ${enrichment.apc_currency}` : ''}
+                        {enrichment.apc_year ? ` (${enrichment.apc_year})` : ''}
+                      </span>
+                    </div>
+                  )}
+                  {enrichment.languages && enrichment.languages.length > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-500">Languages</span>
+                      <span className="font-semibold text-right max-w-[180px]">
+                        {enrichment.languages.slice(0, 3).join(', ')}
+                        {enrichment.languages.length > 3 && ` +${enrichment.languages.length - 3}`}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-gray-400 mt-2">
+                  Data from {enrichment.data_source === 'both' ? 'Scopus & DOAJ' : enrichment.data_source === 'scopus' ? 'Scopus' : 'DOAJ'}.
+                </p>
+              </div>
+            )}
+
+            {/* Title History (if journal has successors/predecessors) */}
+            {enrichment?.title_history && enrichment.related_titles && enrichment.related_titles.length > 0 && (
+              <div className="border-t pt-4">
+                <div className="text-sm font-medium mb-2">Title History</div>
+                <div className="space-y-2">
+                  <div className="text-sm text-gray-600 dark:text-gray-300">
+                    <span className="text-gray-500">{enrichment.title_history}:</span>
+                  </div>
+                  <ul className="list-disc list-inside space-y-1">
+                    {enrichment.related_titles.map((title, idx) => (
+                      <li key={idx} className="text-sm text-gray-700 dark:text-gray-300">
+                        {title}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+
+            {/* Top MeSH Terms */}
+            {meshTerms.length > 0 && (() => {
+              const displayedMesh = showAllMesh ? meshTerms : meshTerms.slice(0, 10);
+              return (
+                <div className="border-t pt-4">
+                  <div className="text-sm font-medium mb-2">Top MeSH Terms</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {displayedMesh.map((term) => (
+                      <Link
+                        key={term.meshUi}
+                        href={`/mesh/${term.meshUi}`}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-teal-50 text-teal-700 hover:bg-teal-100 transition-colors"
+                      >
+                        {term.meshName}
+                        <span className="text-teal-400">({formatNumber(term.paperCount)})</span>
+                      </Link>
+                    ))}
+                    {meshTerms.length > 10 && !showAllMesh && (
+                      <button
+                        onClick={() => setShowAllMesh(true)}
+                        className="text-xs text-blue-600 hover:underline px-1"
+                      >
+                        +{meshTerms.length - 10} more
+                      </button>
+                    )}
+                    {meshTerms.length > 10 && showAllMesh && (
+                      <button
+                        onClick={() => setShowAllMesh(false)}
+                        className="text-xs text-blue-600 hover:underline px-1"
+                      >
+                        show less
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
           </CardContent>
         </Card>

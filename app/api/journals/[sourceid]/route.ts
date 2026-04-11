@@ -11,6 +11,8 @@ import type {
   JournalRetractionStats,
   JournalDetails,
   HijackedJournalInfo,
+  JournalEnrichment,
+  PredatoryInfo,
 } from "@/lib/types";
 
 export async function GET(
@@ -194,9 +196,104 @@ export async function GET(
           original_url: hijackedRow.original_url,
         };
       }
-    } catch (e) {
+    } catch {
       // Table may not exist yet
       console.log("hijacked_journals table not found, skipping");
+    }
+
+    // Get enrichment data from Scopus/DOAJ
+    let enrichment: JournalEnrichment | undefined;
+    try {
+      const enrichmentRow = db.prepare(`
+        SELECT scopus_source_id, publisher_scopus, license_type,
+               apc_amount, apc_currency, apc_year, languages,
+               is_discontinued, discontinued_for_quality,
+               asjc_codes, lcc_codes, subjects_doaj, data_source,
+               eissn, coverage, source_type, is_medline, articles_in_press,
+               title_history, related_titles, top_level_categories
+        FROM journal_enrichment
+        WHERE sourceid = ?
+      `).get(sourceid) as {
+        scopus_source_id: string | null;
+        publisher_scopus: string | null;
+        license_type: string | null;
+        apc_amount: number | null;
+        apc_currency: string | null;
+        apc_year: number | null;
+        languages: string | null;
+        is_discontinued: number;
+        discontinued_for_quality: number;
+        asjc_codes: string | null;
+        lcc_codes: string | null;
+        subjects_doaj: string | null;
+        data_source: string | null;
+        eissn: string | null;
+        coverage: string | null;
+        source_type: string | null;
+        is_medline: number;
+        articles_in_press: number;
+        title_history: string | null;
+        related_titles: string | null;
+        top_level_categories: string | null;
+      } | undefined;
+
+      if (enrichmentRow) {
+        enrichment = {
+          scopus_source_id: enrichmentRow.scopus_source_id,
+          publisher_scopus: enrichmentRow.publisher_scopus,
+          license_type: enrichmentRow.license_type,
+          apc_amount: enrichmentRow.apc_amount,
+          apc_currency: enrichmentRow.apc_currency,
+          apc_year: enrichmentRow.apc_year,
+          languages: enrichmentRow.languages ? JSON.parse(enrichmentRow.languages) : null,
+          is_discontinued: enrichmentRow.is_discontinued === 1,
+          discontinued_for_quality: enrichmentRow.discontinued_for_quality === 1,
+          asjc_codes: enrichmentRow.asjc_codes ? JSON.parse(enrichmentRow.asjc_codes) : null,
+          lcc_codes: enrichmentRow.lcc_codes ? JSON.parse(enrichmentRow.lcc_codes) : null,
+          subjects_doaj: enrichmentRow.subjects_doaj,
+          data_source: enrichmentRow.data_source as 'scopus' | 'doaj' | 'both' | null,
+          // New fields
+          eissn: enrichmentRow.eissn,
+          coverage: enrichmentRow.coverage,
+          source_type: enrichmentRow.source_type,
+          is_medline: enrichmentRow.is_medline === 1,
+          articles_in_press: enrichmentRow.articles_in_press === 1,
+          title_history: enrichmentRow.title_history,
+          related_titles: enrichmentRow.related_titles ? JSON.parse(enrichmentRow.related_titles) : null,
+          top_level_categories: enrichmentRow.top_level_categories ? JSON.parse(enrichmentRow.top_level_categories) : null,
+        };
+      }
+    } catch {
+      // Table may not exist yet
+      console.log("journal_enrichment table not found, skipping");
+    }
+
+    // Get predatory journal info from Beall's List
+    let predatoryInfo: PredatoryInfo | undefined;
+    try {
+      const predRow = db.prepare(`
+        SELECT predatory_source, matched_name, matched_publisher, predatory_url, confidence
+        FROM predatory_journals
+        WHERE sourceid = ?
+      `).get(sourceid) as {
+        predatory_source: string;
+        matched_name: string;
+        matched_publisher: string | null;
+        predatory_url: string | null;
+        confidence: string;
+      } | undefined;
+
+      if (predRow) {
+        predatoryInfo = {
+          source: predRow.predatory_source,
+          name: predRow.matched_name,
+          publisher: predRow.matched_publisher,
+          url: predRow.predatory_url,
+          confidence: predRow.confidence,
+        };
+      }
+    } catch {
+      // Table may not exist yet
     }
 
     const response: JournalDetails = {
@@ -207,6 +304,8 @@ export async function GET(
       officialMetrics,
       retractionStats,
       hijackedInfo,
+      enrichment,
+      predatoryInfo,
     };
 
     return NextResponse.json(response);

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { JournalField, JournalFieldPaper } from "@/lib/types";
+import { PaperTitle } from "@/components/PaperTitle";
 import { formatNumber } from "@/lib/utils";
 import { ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 
@@ -163,7 +164,7 @@ export function FieldBadges({ fields, sourceid, maxDisplay = 10 }: FieldBadgesPr
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium line-clamp-2">
-                            {paper.title || "Untitled"}
+                            {paper.title ? <PaperTitle title={paper.title} /> : "Untitled"}
                           </p>
                           <p className="text-xs text-gray-500 mt-1">
                             {paper.year && `${paper.year} • `}
