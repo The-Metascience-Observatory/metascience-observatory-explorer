@@ -128,6 +128,7 @@ export interface GeoLocation {
   city: string;
   lat: number;
   lon: number;
+  timezone: string;
 }
 
 // Get cached geolocation for an IP
@@ -135,8 +136,8 @@ export function getCachedGeoLocation(ip: string): GeoLocation | null {
   try {
     const db = getAnalyticsDb();
     const row = db
-      .prepare("SELECT country, city, lat, lon, cached_at FROM ip_geo_cache WHERE ip = ?")
-      .get(ip) as { country: string; city: string; lat: number; lon: number; cached_at: number } | undefined;
+      .prepare("SELECT country, city, lat, lon, timezone, cached_at FROM ip_geo_cache WHERE ip = ?")
+      .get(ip) as { country: string; city: string; lat: number; lon: number; timezone: string; cached_at: number } | undefined;
 
     if (!row) return null;
 
@@ -146,7 +147,7 @@ export function getCachedGeoLocation(ip: string): GeoLocation | null {
       return null;
     }
 
-    return { country: row.country, city: row.city, lat: row.lat, lon: row.lon };
+    return { country: row.country, city: row.city, lat: row.lat, lon: row.lon, timezone: row.timezone || "" };
   } catch {
     return null;
   }
@@ -160,14 +161,15 @@ export function setCachedGeoLocation(ip: string, geo: GeoLocation): void {
 
     const db = getAnalyticsDb();
     db.prepare(`
-      INSERT OR REPLACE INTO ip_geo_cache (ip, country, city, lat, lon, cached_at)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO ip_geo_cache (ip, country, city, lat, lon, timezone, cached_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(
       ip,
       sanitizeString(geo.country, 100),
       sanitizeString(geo.city, 100),
       typeof geo.lat === "number" ? geo.lat : 0,
       typeof geo.lon === "number" ? geo.lon : 0,
+      sanitizeString(geo.timezone || "", 100),
       Date.now()
     );
   } catch (error) {
@@ -193,7 +195,7 @@ export async function fetchGeoLocation(ip: string): Promise<GeoLocation | null> 
   try {
     // URL encode the IP to prevent injection in the URL
     const encodedIP = encodeURIComponent(ip);
-    const response = await fetch(`http://ip-api.com/json/${encodedIP}?fields=status,country,city,lat,lon`, {
+    const response = await fetch(`http://ip-api.com/json/${encodedIP}?fields=status,country,city,lat,lon,timezone`, {
       signal: AbortSignal.timeout(5000), // 5 second timeout
     });
     if (!response.ok) return null;
@@ -207,6 +209,7 @@ export async function fetchGeoLocation(ip: string): Promise<GeoLocation | null> 
       city: sanitizeString(String(data.city || "Unknown"), 100),
       lat: typeof data.lat === "number" ? data.lat : 0,
       lon: typeof data.lon === "number" ? data.lon : 0,
+      timezone: sanitizeString(String(data.timezone || ""), 100),
     };
   } catch {
     return null;

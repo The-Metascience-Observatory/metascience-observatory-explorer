@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import type { AffiliationSearchItem } from "@/lib/types";
@@ -22,7 +23,7 @@ const typeColors: Record<string, string> = {
   other: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
 };
 
-export function AffiliationCard({ affiliation, compact = false }: AffiliationCardProps) {
+export const AffiliationCard = memo(function AffiliationCard({ affiliation, compact = false }: AffiliationCardProps) {
   const typeColor = affiliation.type ? typeColors[affiliation.type] || typeColors.other : typeColors.other;
 
   return (
@@ -62,4 +63,4 @@ export function AffiliationCard({ affiliation, compact = false }: AffiliationCar
       </Card>
     </Link>
   );
-}
+});

@@ -181,18 +181,22 @@ export default function FundersMapPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold mb-1">Funders Map</h1>
         <p className="text-sm text-gray-500">
-          Using funders data from SciSciNet-V2, derived from OpenAlex data
+          Using funders data from{" "}
+          <a href="https://northwestern-cssi.github.io/sciscinet/" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-700">SciSciNet-V2</a>
+          , derived from{" "}
+          <a href="https://openalex.org/" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-700">OpenAlex</a>
+          {" "}data
         </p>
       </div>
       <Card className="mb-6">
-        <CardContent className="p-0 relative">
+        <CardContent className="p-0 relative flex justify-center">
           <ComposableMap
             projection="geoMercator"
             projectionConfig={{
               scale: 130,
               center: [0, 30],
             }}
-            style={{ width: "100%", height: "auto" }}
+            style={{ width: "80%", height: "auto" }}
           >
             <ZoomableGroup>
               <Geographies geography={GEO_URL}>

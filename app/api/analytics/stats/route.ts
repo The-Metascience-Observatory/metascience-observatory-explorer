@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
+import { timingSafeEqual } from "crypto";
 import { getAnalyticsDb } from "@/lib/db";
 import { processGeoLocationBatch } from "@/lib/analytics";
 import { errorResponse } from "@/lib/api-utils";
@@ -18,6 +19,7 @@ interface VisitorStats {
   browserBreakdown: { browser: string; count: number }[];
   topPages: { path: string; count: number }[];
   topCountries: { country: string; count: number }[];
+  recentVisitors: { ip: string; country: string; timezone: string; lastVisit: number; pages: string[] }[];
 }
 
 export async function GET(request: Request) {
@@ -25,10 +27,18 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const headersList = await headers();
 
-    // Auth check: require token via query param or header
-    const token = searchParams.get("token") || headersList.get("x-analytics-token");
+    // Auth check: require token via Authorization header only
+    const authHeader = headersList.get("authorization");
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
     const expectedToken = process.env.ANALYTICS_TOKEN;
-    if (expectedToken && token !== expectedToken) {
+    if (!expectedToken || !token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    try {
+      if (!timingSafeEqual(Buffer.from(token), Buffer.from(expectedToken))) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+    } catch {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -175,6 +185,35 @@ export async function GET(request: Request) {
       )
       .all(cutoffTime) as { country: string; count: number }[];
 
+    // Recent visitors (last 24h) - grouped by IP with pages visited
+    const recentCutoff = Date.now() - 24 * 60 * 60 * 1000;
+    const recentRows = db
+      .prepare(
+        `
+        SELECT
+          v.ip,
+          COALESCE(g.country, v.country, 'Unknown') as country,
+          COALESCE(g.timezone, '') as timezone,
+          MAX(v.timestamp) as lastVisit,
+          GROUP_CONCAT(v.path, '|||') as pages
+        FROM visitor_logs v
+        LEFT JOIN ip_geo_cache g ON v.ip = g.ip
+        WHERE v.timestamp >= ?
+        GROUP BY v.ip
+        ORDER BY lastVisit DESC
+        LIMIT 100
+      `
+      )
+      .all(recentCutoff) as { ip: string; country: string; timezone: string; lastVisit: number; pages: string }[];
+
+    const recentVisitors = recentRows.map((row) => ({
+      ip: row.ip.replace(/\.\d+$/, '.xxx'),
+      country: row.country,
+      timezone: row.timezone,
+      lastVisit: row.lastVisit,
+      pages: [...new Set(row.pages.split("|||"))],
+    }));
+
     // Count IPs needing geo lookup
     const pendingGeoCount = (
       db
@@ -204,6 +243,7 @@ export async function GET(request: Request) {
       topPages,
       topCountries,
       pendingGeoCount,
+      recentVisitors,
     };
 
     return NextResponse.json(stats);

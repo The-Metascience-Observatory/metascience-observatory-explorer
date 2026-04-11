@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ListItemLink } from "@/components/ListItemLink";
+import { PaperTitle } from "@/components/PaperTitle";
 import { formatNumber } from "@/lib/utils";
 import { ArrowUpRight, Quote, Loader2 } from "lucide-react";
 
@@ -72,7 +73,7 @@ export function PaperListCard({
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium line-clamp-2">
-                      {paper.title || "Untitled"}
+                      {paper.title ? <PaperTitle title={paper.title} /> : "Untitled"}
                     </p>
                     <p className="text-xs text-gray-500 mt-1">
                       {paper.year && `${paper.year} • `}

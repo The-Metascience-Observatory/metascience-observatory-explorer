@@ -4,6 +4,7 @@ import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { ArrowLeft, Users, BookOpen, Loader2, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PaperTitle } from "@/components/PaperTitle";
 import type { FieldDetails } from "@/lib/types";
 
 function formatNumber(num: number | null | undefined): string {
@@ -210,7 +211,7 @@ export default function FieldDetailPage({
                       </span>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 dark:text-gray-100 line-clamp-2">
-                          {paper.title || "Untitled"}
+                          {paper.title ? <PaperTitle title={paper.title} /> : "Untitled"}
                         </p>
                         <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
                           {paper.year && <span>{paper.year}</span>}

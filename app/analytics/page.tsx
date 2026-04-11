@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Users, Eye, Globe, Monitor, Smartphone, MapPin } from "lucide-react";
+import { Loader2, Users, Eye, Globe, Monitor, Smartphone, MapPin, Search } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -18,15 +18,14 @@ import {
   Cell,
   Legend,
 } from "recharts";
-import {
-  ComposableMap,
-  Geographies,
-  Geography,
-  Marker,
-  ZoomableGroup,
-} from "react-simple-maps";
 
-const GEO_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
+interface RecentVisitor {
+  ip: string;
+  country: string;
+  timezone: string;
+  lastVisit: number;
+  pages: string[];
+}
 
 interface VisitorStats {
   totalVisitors: number;
@@ -39,6 +38,7 @@ interface VisitorStats {
   topPages: { path: string; count: number }[];
   topCountries: { country: string; count: number }[];
   pendingGeoCount: number;
+  recentVisitors: RecentVisitor[];
 }
 
 const DEVICE_COLORS = {
@@ -72,20 +72,15 @@ export default function AnalyticsPage() {
   const [error, setError] = useState<string | null>(null);
   const [days, setDays] = useState(30);
   const [processingGeo, setProcessingGeo] = useState(false);
-  const [tooltipContent, setTooltipContent] = useState<{
-    city: string;
-    country: string;
-    count: number;
-  } | null>(null);
-  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
   const fetchStats = async (processGeo = false) => {
     try {
       if (processGeo) setProcessingGeo(true);
-      // Token can be passed via URL param for easy access (set ANALYTICS_TOKEN env var)
       const token = new URLSearchParams(window.location.search).get("token") || "";
-      const url = `/api/analytics/stats?days=${days}${processGeo ? "&processGeo=true" : ""}${token ? `&token=${token}` : ""}`;
-      const res = await fetch(url);
+      const url = `/api/analytics/stats?days=${days}${processGeo ? "&processGeo=true" : ""}`;
+      const res = await fetch(url, {
+        headers: token ? { "Authorization": `Bearer ${token}` } : {},
+      });
       if (!res.ok) {
         if (res.status === 401) throw new Error("Unauthorized - add ?token=YOUR_TOKEN to URL");
         throw new Error(`HTTP ${res.status}`);
@@ -105,18 +100,6 @@ export default function AnalyticsPage() {
     fetchStats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [days]);
-
-  const maxMarkerCount = useMemo(() => {
-    if (!stats?.visitorsByLocation.length) return 1;
-    return Math.max(...stats.visitorsByLocation.map((l) => l.count));
-  }, [stats]);
-
-  const getMarkerSize = (count: number) => {
-    const minSize = 4;
-    const maxSize = 20;
-    const ratio = Math.log(count + 1) / Math.log(maxMarkerCount + 1);
-    return minSize + ratio * (maxSize - minSize);
-  };
 
   if (loading) {
     return (
@@ -248,93 +231,75 @@ export default function AnalyticsPage() {
         </Card>
       </div>
 
-      {/* World Map */}
+      {/* Recent Visitors (Last 24h) */}
       <Card className="mb-6">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <Globe className="h-5 w-5" />
-            Visitor Locations
+            <Users className="h-5 w-5" />
+            Recent Visitors (Last 24h)
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-0 relative">
-          <ComposableMap
-            projection="geoMercator"
-            projectionConfig={{
-              scale: 130,
-              center: [0, 30],
-            }}
-            style={{ width: "100%", height: "auto" }}
-          >
-            <ZoomableGroup>
-              <Geographies geography={GEO_URL}>
-                {({ geographies }) =>
-                  geographies.map((geo) => (
-                    <Geography
-                      key={geo.rsmKey}
-                      geography={geo}
-                      style={{
-                        default: {
-                          fill: "#e5e7eb",
-                          stroke: "#fff",
-                          strokeWidth: 0.5,
-                          outline: "none",
-                        },
-                        hover: {
-                          fill: "#d1d5db",
-                          stroke: "#fff",
-                          strokeWidth: 0.5,
-                          outline: "none",
-                        },
-                      }}
-                    />
-                  ))
-                }
-              </Geographies>
-              {stats.visitorsByLocation.map((location, idx) => (
-                <Marker
-                  key={`${location.lat}-${location.lon}-${idx}`}
-                  coordinates={[location.lon, location.lat]}
-                  onMouseEnter={(evt) => {
-                    setTooltipContent({
-                      city: location.city,
-                      country: location.country,
-                      count: location.count,
-                    });
-                    setTooltipPos({ x: evt.clientX, y: evt.clientY });
-                  }}
-                  onMouseMove={(evt) => {
-                    setTooltipPos({ x: evt.clientX, y: evt.clientY });
-                  }}
-                  onMouseLeave={() => setTooltipContent(null)}
-                >
-                  <circle
-                    r={getMarkerSize(location.count)}
-                    fill="#3b82f6"
-                    fillOpacity={0.6}
-                    stroke="#1d4ed8"
-                    strokeWidth={1}
-                    style={{ cursor: "pointer" }}
-                  />
-                </Marker>
-              ))}
-            </ZoomableGroup>
-          </ComposableMap>
-
-          {/* Map Tooltip */}
-          {tooltipContent && (
-            <div
-              className="fixed z-50 pointer-events-none bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg px-3 py-2 text-sm"
-              style={{
-                left: tooltipPos.x + 10,
-                top: tooltipPos.y + 10,
-              }}
-            >
-              <div className="font-semibold">{tooltipContent.city}</div>
-              <div className="text-gray-500">{tooltipContent.country}</div>
-              <div className="text-blue-600 font-medium">
-                {tooltipContent.count} visitor{tooltipContent.count !== 1 ? "s" : ""}
-              </div>
+        <CardContent>
+          {stats.recentVisitors && stats.recentVisitors.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b dark:border-gray-700">
+                    <th className="text-left py-2 pr-4 font-medium text-gray-500">IP</th>
+                    <th className="text-left py-2 pr-4 font-medium text-gray-500">Country</th>
+                    <th className="text-left py-2 pr-4 font-medium text-gray-500">Timezone</th>
+                    <th className="text-left py-2 pr-4 font-medium text-gray-500">Last Visit</th>
+                    <th className="text-left py-2 font-medium text-gray-500">Pages Visited</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stats.recentVisitors.map((visitor) => (
+                    <tr key={visitor.ip} className="border-b dark:border-gray-800">
+                      <td className="py-2 pr-4">
+                        <div className="flex items-center gap-1">
+                          <span className="font-mono text-xs">{visitor.ip}</span>
+                          <a
+                            href={`https://who.is/whois-ip/ip-address/${visitor.ip}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-500 hover:text-blue-700"
+                            title="WHOIS lookup"
+                          >
+                            <Search className="h-3 w-3" />
+                          </a>
+                        </div>
+                      </td>
+                      <td className="py-2 pr-4">{visitor.country || "Unknown"}</td>
+                      <td className="py-2 pr-4 text-xs text-gray-500">{visitor.timezone || "—"}</td>
+                      <td className="py-2 pr-4 text-xs text-gray-500">
+                        {new Date(visitor.lastVisit).toLocaleString()}
+                      </td>
+                      <td className="py-2">
+                        <div className="flex flex-wrap gap-1">
+                          {visitor.pages.slice(0, 5).map((page, i) => (
+                            <a
+                              key={i}
+                              href={page}
+                              className="inline-block px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-xs text-blue-600 hover:text-blue-800 hover:underline truncate max-w-[200px]"
+                              title={page}
+                            >
+                              {page}
+                            </a>
+                          ))}
+                          {visitor.pages.length > 5 && (
+                            <span className="text-xs text-gray-400">
+                              +{visitor.pages.length - 5} more
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
+          ) : (
+            <p className="text-gray-500 text-sm">No visitors in the last 24 hours.</p>
           )}
         </CardContent>
       </Card>
@@ -491,9 +456,13 @@ export default function AnalyticsPage() {
                 >
                   <div className="flex items-center gap-2 min-w-0 flex-1">
                     <span className="text-gray-400 text-sm w-6 flex-shrink-0">{idx + 1}.</span>
-                    <span className="truncate text-sm" title={page.path}>
+                    <a
+                      href={page.path}
+                      className="truncate text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                      title={page.path}
+                    >
                       {page.path}
-                    </span>
+                    </a>
                   </div>
                   <span className="text-blue-600 font-semibold tabular-nums ml-2">
                     {page.count.toLocaleString()}

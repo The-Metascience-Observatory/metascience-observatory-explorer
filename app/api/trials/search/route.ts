@@ -134,44 +134,69 @@ export async function GET(request: NextRequest) {
       `;
       results = await workerQuery<TrialSearchItem>(sql, ...interventionParams, ...phaseParams, limit, offset);
     } else if (isNctQuery) {
-      const searchPattern = `${query!.toUpperCase()}%`;
+      const nctUpper = query!.toUpperCase();
+      // Use exact match for full NCT IDs, range comparison for prefixes (uses primary key index)
+      const isExact = /^NCT\d{8}$/.test(nctUpper);
 
-      // Get total count
-      const countSql = `
-        SELECT COUNT(*) as count
-        FROM ctg_studies ctg
-        WHERE ctg.nct_id LIKE ? ${interventionClause} ${phaseClause}
-      `;
-      const countResult = await workerQueryOne<{ count: number }>(countSql, searchPattern, ...interventionParams, ...phaseParams);
-      total = countResult?.count ?? 0;
+      if (isExact) {
+        // Exact NCT ID lookup
+        total = 1;
+        const sql = `
+          SELECT
+            ctg.nct_id,
+            ctg.title,
+            ctg.status,
+            ctg.phase,
+            ctg.sponsor,
+            ctg.enrollment,
+            ts.paper_count
+          FROM ctg_studies ctg
+          LEFT JOIN trial_summary ts ON ctg.nct_id = ts.nct_id
+          WHERE ctg.nct_id = ? ${interventionClause} ${phaseClause}
+        `;
+        results = await workerQuery<TrialSearchItem>(sql, nctUpper, ...interventionParams, ...phaseParams);
+        total = results.length;
+      } else {
+        // Prefix search using range comparison (leverages primary key index)
+        const prefixEnd = nctUpper.slice(0, -1) + String.fromCharCode(nctUpper.charCodeAt(nctUpper.length - 1) + 1);
 
-      // Search by NCT ID prefix match with pagination
-      const sql = `
-        SELECT
-          ctg.nct_id,
-          ctg.title,
-          ctg.status,
-          ctg.phase,
-          ctg.sponsor,
-          ctg.enrollment,
-          ts.paper_count
-        FROM ctg_studies ctg
-        LEFT JOIN trial_summary ts ON ctg.nct_id = ts.nct_id
-        WHERE ctg.nct_id LIKE ? ${interventionClause} ${phaseClause}
-        ORDER BY ctg.enrollment DESC NULLS LAST
-        LIMIT ? OFFSET ?
-      `;
-      results = await workerQuery<TrialSearchItem>(sql, searchPattern, ...interventionParams, ...phaseParams, limit, offset);
+        const countSql = `
+          SELECT COUNT(*) as count
+          FROM ctg_studies ctg
+          WHERE ctg.nct_id >= ? AND ctg.nct_id < ? ${interventionClause} ${phaseClause}
+        `;
+        const countResult = await workerQueryOne<{ count: number }>(countSql, nctUpper, prefixEnd, ...interventionParams, ...phaseParams);
+        total = countResult?.count ?? 0;
+
+        const sql = `
+          SELECT
+            ctg.nct_id,
+            ctg.title,
+            ctg.status,
+            ctg.phase,
+            ctg.sponsor,
+            ctg.enrollment,
+            ts.paper_count
+          FROM ctg_studies ctg
+          LEFT JOIN trial_summary ts ON ctg.nct_id = ts.nct_id
+          WHERE ctg.nct_id >= ? AND ctg.nct_id < ? ${interventionClause} ${phaseClause}
+          ORDER BY ctg.enrollment DESC NULLS LAST
+          LIMIT ? OFFSET ?
+        `;
+        results = await workerQuery<TrialSearchItem>(sql, nctUpper, prefixEnd, ...interventionParams, ...phaseParams, limit, offset);
+      }
     } else {
-      const searchPattern = `%${query}%`;
+      // Use FTS5 for fast title search
+      const ftsQuery = query!.split(/\s+/).filter(w => w.length > 0).map(w => `"${w}"*`).join(' ');
 
       // Get total count
       const countSql = `
         SELECT COUNT(*) as count
-        FROM ctg_studies ctg
-        WHERE LOWER(ctg.title) LIKE LOWER(?) ${interventionClause} ${phaseClause}
+        FROM ctg_title_fts f
+        JOIN ctg_studies ctg ON f.nct_id = ctg.nct_id
+        WHERE ctg_title_fts MATCH ? ${interventionClause} ${phaseClause}
       `;
-      const countResult = await workerQueryOne<{ count: number }>(countSql, searchPattern, ...interventionParams, ...phaseParams);
+      const countResult = await workerQueryOne<{ count: number }>(countSql, ftsQuery, ...interventionParams, ...phaseParams);
       total = countResult?.count ?? 0;
 
       // Search by title with pagination
@@ -184,13 +209,14 @@ export async function GET(request: NextRequest) {
           ctg.sponsor,
           ctg.enrollment,
           ts.paper_count
-        FROM ctg_studies ctg
+        FROM ctg_title_fts f
+        JOIN ctg_studies ctg ON f.nct_id = ctg.nct_id
         LEFT JOIN trial_summary ts ON ctg.nct_id = ts.nct_id
-        WHERE LOWER(ctg.title) LIKE LOWER(?) ${interventionClause} ${phaseClause}
+        WHERE ctg_title_fts MATCH ? ${interventionClause} ${phaseClause}
         ORDER BY ctg.enrollment DESC NULLS LAST
         LIMIT ? OFFSET ?
       `;
-      results = await workerQuery<TrialSearchItem>(sql, searchPattern, ...interventionParams, ...phaseParams, limit, offset);
+      results = await workerQuery<TrialSearchItem>(sql, ftsQuery, ...interventionParams, ...phaseParams, limit, offset);
     }
 
     const response = {

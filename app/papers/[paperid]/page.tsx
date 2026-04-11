@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PaperCitationsChart, CitationViewMode } from "@/components/PaperCitationsChart";
 import { ListItemLink } from "@/components/ListItemLink";
 import { PaperListCard } from "@/components/PaperListCard";
-import type { PaperDetails, PaperCitation } from "@/lib/types";
+import type { PaperDetails, PaperCitation, MeshTerm } from "@/lib/types";
 import { formatNumber } from "@/lib/utils";
 import LitePaperPage from "./LitePaperPage";
 import {
@@ -177,6 +177,8 @@ export default function PaperDetailPage() {
   const [abstractLanguage, setAbstractLanguage] = useState<string | null>(null);
   const [abstractLoading, setAbstractLoading] = useState(true);
   const [showFullAbstract, setShowFullAbstract] = useState(false);
+  const [isAbstractClamped, setIsAbstractClamped] = useState(false);
+  const abstractRef = useRef<HTMLParagraphElement>(null);
 
   // Extra paper data state (lazy loaded: newsfeed, PMID/PMCID, metadata, patents)
   const [newsfeed, setNewsfeed] = useState<Array<{ url: string; timestamp: string }>>([]);
@@ -202,6 +204,11 @@ export default function PaperDetailPage() {
     notes: string | null;
   } | null>(null);
   const [retractionLoading, setRetractionLoading] = useState(true);
+
+  // MeSH terms state (lazy loaded)
+  const [meshTerms, setMeshTerms] = useState<MeshTerm[]>([]);
+  const [meshLoading, setMeshLoading] = useState(true);
+  const [showAllMesh, setShowAllMesh] = useState(false);
 
   // Infinite scroll state for citations
   const [displayedCitations, setDisplayedCitations] = useState<PaperCitation[]>([]);
@@ -266,6 +273,13 @@ export default function PaperDetailPage() {
     fetchAbstract();
   }, [paperid]);
 
+  // Detect if abstract is actually clamped (text overflows)
+  useEffect(() => {
+    if (!abstractRef.current || showFullAbstract) return;
+    const el = abstractRef.current;
+    setIsAbstractClamped(el.scrollHeight > el.clientHeight);
+  }, [abstract, showFullAbstract]);
+
   // Lazy load extra data (newsfeed, PMID/PMCID, metadata, patents)
   useEffect(() => {
     async function fetchExtra() {
@@ -304,6 +318,29 @@ export default function PaperDetailPage() {
     }
     fetchRetraction();
   }, [paperid]);
+
+  // Lazy load MeSH terms (waits for extra data to get PMID if available)
+  useEffect(() => {
+    if (extraLoading) return;
+    async function fetchMesh() {
+      try {
+        const pmid = pubmed?.pmid;
+        const url = pmid
+          ? `/api/papers/${paperid}/mesh?pmid=${pmid}`
+          : `/api/papers/${paperid}/mesh`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          setMeshTerms(data.meshTerms || []);
+        }
+      } catch (e) {
+        console.error("Failed to fetch MeSH terms:", e);
+      } finally {
+        setMeshLoading(false);
+      }
+    }
+    fetchMesh();
+  }, [paperid, extraLoading, pubmed]);
 
   // Load more citations function
   const loadMoreCitations = useCallback(async () => {
@@ -543,6 +580,21 @@ export default function PaperDetailPage() {
               </div>
             )}
 
+            {/* DOI link */}
+            {cleanedDoi && (
+              <div className="mb-2">
+                <a
+                  href={`https://doi.org/${cleanedDoi}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800"
+                >
+                  DOI: {cleanedDoi}
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+            )}
+
             {/* Journal/Source */}
             {summary.source_name && summary.sourceid && (
               <div className="mb-2">
@@ -617,16 +669,13 @@ export default function PaperDetailPage() {
             {/* Key stats */}
             <div className="space-y-3 mb-6">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">Year</span>
-                <span className="font-semibold">{summary.year || "—"}</span>
+                <span className="text-sm text-gray-500">Published</span>
+                <span className="font-semibold">
+                  {!extraLoading && metadata?.publicationDate
+                    ? metadata.publicationDate
+                    : summary.year || "—"}
+                </span>
               </div>
-              {/* Show full publication date if available */}
-              {!extraLoading && metadata?.publicationDate && metadata.publicationDate !== String(summary.year) && (
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-500">Published</span>
-                  <span className="font-semibold">{metadata.publicationDate}</span>
-                </div>
-              )}
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-500">Citations</span>
                 <span className="font-semibold">{formatNumber(summary.cited_by_count)}</span>
@@ -642,10 +691,6 @@ export default function PaperDetailPage() {
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-500">References</span>
                 <span className="font-semibold">{references.length}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">Authors</span>
-                <span className="font-semibold">{uniqueAuthors.length}</span>
               </div>
               {/* Document type */}
               {!extraLoading && metadata?.docType && (
@@ -714,6 +759,51 @@ export default function PaperDetailPage() {
                 </div>
               </div>
             )}
+
+            {/* MeSH Terms */}
+            {!meshLoading && meshTerms.length > 0 && (() => {
+              // Deduplicate by meshUi for display
+              const uniqueMesh = meshTerms.filter(
+                (term, idx, self) => idx === self.findIndex((t) => t.meshUi === term.meshUi)
+              );
+              const displayedMesh = showAllMesh ? uniqueMesh : uniqueMesh.slice(0, 8);
+              return (
+                <div className="border-t pt-4 mb-4">
+                  <div className="text-sm font-medium mb-2">MeSH Terms</div>
+                  <div className="flex flex-wrap gap-2">
+                    {displayedMesh.map((term) => (
+                      <Link
+                        key={term.meshUi}
+                        href={`/mesh/${term.meshUi}`}
+                        className={`px-2 py-1 rounded-full text-xs transition-colors ${
+                          term.isMajor
+                            ? "bg-teal-100 text-teal-900 dark:bg-teal-900 dark:text-teal-200 hover:bg-teal-200 dark:hover:bg-teal-800 font-medium"
+                            : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+                        }`}
+                      >
+                        {term.meshName}
+                      </Link>
+                    ))}
+                    {uniqueMesh.length > 8 && !showAllMesh && (
+                      <button
+                        onClick={() => setShowAllMesh(true)}
+                        className="px-2 py-1 text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                      >
+                        +{uniqueMesh.length - 8} more
+                      </button>
+                    )}
+                    {uniqueMesh.length > 8 && showAllMesh && (
+                      <button
+                        onClick={() => setShowAllMesh(false)}
+                        className="px-2 py-1 text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                      >
+                        show less
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Clinical Trials */}
             {trials && trials.length > 0 && (
@@ -849,20 +939,8 @@ export default function PaperDetailPage() {
               </div>
             )}
 
-            {/* DOI & BibTeX - always at bottom */}
+            {/* BibTeX - always at bottom */}
             <div className="border-t pt-4 space-y-2">
-              {cleanedDoi && (
-                <a
-                  href={`https://doi.org/${cleanedDoi}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800"
-                >
-                  DOI: {cleanedDoi}
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              )}
-
               {/* BibTeX toggle button */}
               <button
                 onClick={handleShowBibtex}
@@ -968,10 +1046,13 @@ export default function PaperDetailPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className={`text-sm text-gray-700 dark:text-gray-300 ${showFullAbstract ? "" : "line-clamp-[15]"}`}>
+                <p
+                  ref={abstractRef}
+                  className={`text-sm text-gray-700 dark:text-gray-300 ${showFullAbstract ? "" : "line-clamp-[15]"}`}
+                >
                   {abstract}
                 </p>
-                {abstract.length > 600 && (
+                {(isAbstractClamped || showFullAbstract) && (
                   <button
                     onClick={() => setShowFullAbstract(!showFullAbstract)}
                     className="text-blue-600 hover:text-blue-800 text-sm mt-2"

@@ -233,9 +233,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(response);
   } catch (error) {
-    // If FTS table doesn't exist, fall back to LIKE search
-    if (error instanceof Error && error.message.includes("no such table: person_fts")) {
-      console.log("FTS table not found, falling back to LIKE search");
+    if (error instanceof Error && error.message.includes("no such table")) {
+      console.error("Search index not available:", error.message);
       return fallbackLikeSearch(query);
     }
 

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { PaperCard } from "@/components/PaperCard";
 import type { PaperSearchItem } from "@/lib/types";
+import { ENTITY_COUNTS } from "@/lib/counts";
 import { Search, Loader2 } from "lucide-react";
 
 interface PaperSearchProps {
@@ -22,33 +23,10 @@ interface SearchResponse {
 export function PaperSearch({ compact = false }: PaperSearchProps) {
   const router = useRouter();
   const [results, setResults] = useState<PaperSearchItem[]>([]);
-  const [totalPapers, setTotalPapers] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [indexMissing, setIndexMissing] = useState(false);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
-
-  // Load total count on mount
-  useEffect(() => {
-    async function loadCount() {
-      try {
-        const res = await fetch("/api/papers/search");
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data: SearchResponse = await res.json();
-        if (data.error) {
-          throw new Error(data.error);
-        }
-        setTotalPapers(data.total ?? null);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Failed to connect to database");
-      } finally {
-        setInitialLoading(false);
-      }
-    }
-    loadCount();
-  }, []);
 
   // Handle input changes - just update state, no immediate redirect
   const handleInputChange = useCallback(
@@ -94,9 +72,7 @@ export function PaperSearch({ compact = false }: PaperSearchProps) {
           setIndexMissing(false);
           setResults(data.results ?? []);
         }
-        setError(null);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Search failed");
+      } catch {
         setResults([]);
       } finally {
         setLoading(false);
@@ -114,29 +90,12 @@ export function PaperSearch({ compact = false }: PaperSearchProps) {
     [query, router]
   );
 
-  if (initialLoading) {
-    return (
-      <div className={`flex items-center justify-center ${compact ? "py-4" : "py-12"}`}>
-        <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
-        <span className="ml-2 text-sm text-gray-500">Loading...</span>
-      </div>
-    );
-  }
-
-  if (error && !results.length && !query) {
-    return (
-      <div className={`text-center ${compact ? "py-4" : "py-12"}`}>
-        <p className="text-red-600 text-sm">Error: {error}</p>
-      </div>
-    );
-  }
-
   return (
     <div className="w-full">
       {/* Subtitle with count */}
-      {compact && totalPapers && (
+      {compact && (
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-          Search through {totalPapers.toLocaleString()} papers
+          Search through {ENTITY_COUNTS.papers.toLocaleString()} papers
         </p>
       )}
 
@@ -186,7 +145,7 @@ export function PaperSearch({ compact = false }: PaperSearchProps) {
 
       {!compact && query.length === 0 && (
         <div className="mt-6 text-center text-gray-500">
-          <p>Search through {totalPapers ? totalPapers.toLocaleString() : "..."} papers</p>
+          <p>Search through {ENTITY_COUNTS.papers.toLocaleString()} papers</p>
           <p className="text-sm mt-1">
             Search by title to find academic publications
           </p>

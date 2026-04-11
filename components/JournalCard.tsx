@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import type { JournalSearchItem } from "@/lib/types";
@@ -10,9 +11,14 @@ interface JournalCardProps {
   compact?: boolean;
 }
 
-export function JournalCard({ journal, compact = false }: JournalCardProps) {
+export const JournalCard = memo(function JournalCard({ journal, compact = false }: JournalCardProps) {
+  // Link to different routes based on whether it's a Scopus-only journal
+  const href = journal.scopus_only
+    ? `/journals/scopus/${journal.sourceid}`
+    : `/journals/${journal.sourceid}`;
+
   return (
-    <Link href={`/journals/${journal.sourceid}`}>
+    <Link href={href}>
       <Card className={`${compact ? "p-2" : "p-4"} hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors cursor-pointer`}>
         <div className={`flex items-start ${compact ? "gap-2" : "gap-3"}`}>
           {!compact && (
@@ -28,6 +34,11 @@ export function JournalCard({ journal, compact = false }: JournalCardProps) {
                   OA
                 </span>
               ) : null}
+              {journal.scopus_only && (
+                <span className="px-1.5 py-0.5 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded">
+                  Scopus
+                </span>
+              )}
             </div>
             {!compact && (
               <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
@@ -45,4 +56,4 @@ export function JournalCard({ journal, compact = false }: JournalCardProps) {
       </Card>
     </Link>
   );
-}
+});

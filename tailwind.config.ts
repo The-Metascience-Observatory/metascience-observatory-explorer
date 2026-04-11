@@ -7,6 +7,9 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        clarendon: ["var(--font-roboto-slab)", "Roboto Slab", "serif"],
+      },
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",

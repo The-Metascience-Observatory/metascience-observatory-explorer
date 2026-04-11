@@ -6,6 +6,7 @@ let cacheDb: Database.Database | null = null;
 let abstractsDb: Database.Database | null = null;
 let papersExtraDb: Database.Database | null = null;
 let retractionsDb: Database.Database | null = null;
+let meshDb: Database.Database | null = null;
 
 export function getDb(): Database.Database {
   if (!db) {
@@ -174,6 +175,20 @@ export function getRetractionsDb(): Database.Database | null {
   return retractionsDb;
 }
 
+// Get MeSH database (MeSH terms, PMID mappings, precomputed stats)
+export function getMeshDb(): Database.Database | null {
+  if (meshDb === null) {
+    try {
+      const dbPath = path.join(process.cwd(), "data", "mesh.db");
+      meshDb = new Database(dbPath, { readonly: true, fileMustExist: true });
+    } catch {
+      // mesh.db may not exist - return null
+      return null;
+    }
+  }
+  return meshDb;
+}
+
 // Helper to check if database exists and is accessible
 export function isDatabaseAvailable(): boolean {
   try {
@@ -271,9 +286,17 @@ export function getAnalyticsDb(): Database.Database {
         city TEXT,
         lat REAL,
         lon REAL,
+        timezone TEXT,
         cached_at INTEGER NOT NULL
       )
     `);
+
+    // Migration: add timezone column if missing
+    try {
+      analyticsDb.exec(`ALTER TABLE ip_geo_cache ADD COLUMN timezone TEXT`);
+    } catch {
+      // Column already exists
+    }
   }
   return analyticsDb;
 }

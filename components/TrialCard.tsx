@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import type { TrialSearchItem } from "@/lib/types";
@@ -36,7 +37,7 @@ function formatStatus(status: string | null): string {
   return status.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 }
 
-export function TrialCard({ trial, compact = false, hideStatus = false }: TrialCardProps) {
+export const TrialCard = memo(function TrialCard({ trial, compact = false, hideStatus = false }: TrialCardProps) {
   return (
     <Link href={`/trials/${trial.nct_id}`}>
       <Card className={`${compact ? "p-2" : "p-4"} hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors cursor-pointer`}>
@@ -75,4 +76,4 @@ export function TrialCard({ trial, compact = false, hideStatus = false }: TrialC
       </Card>
     </Link>
   );
-}
+});
