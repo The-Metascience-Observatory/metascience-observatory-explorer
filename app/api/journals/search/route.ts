@@ -5,6 +5,8 @@ import type { JournalSearchItem } from "@/lib/types";
 import { searchCaches, generateCacheKey } from "@/lib/search-cache";
 import { workerQuery } from "@/lib/worker-pool";
 
+const STOP_WORDS = new Set(['of', 'the', 'and', 'in', 'for', 'on', 'to', 'a', 'an', 'at', 'by', 'or', 'is', 'it']);
+
 function sanitizeFtsWord(word: string): string {
   return word.replace(/[^a-zA-Z0-9]/g, '').trim();
 }
@@ -20,6 +22,16 @@ function buildFtsQuery(query: string): string {
       return `"${sanitized}"*`;
     });
   }).filter(w => w.length > 0).join(' ');
+}
+
+/**
+ * Extract significant search words from query (skip stop words and short words).
+ * Returns words suitable for individual LIKE matching.
+ */
+function extractSearchWords(query: string): string[] {
+  return query.trim().toLowerCase().split(/\s+/)
+    .map(w => w.replace(/[^a-z0-9-]/g, ''))
+    .filter(w => w.length >= 2 && !STOP_WORDS.has(w));
 }
 
 /**
@@ -71,8 +83,34 @@ export async function GET(request: NextRequest) {
     }
 
     const searchPattern = `%${query}%`;
+    const searchWords = extractSearchWords(query);
 
-    // Search OpenAlex journals (with total_papers for ranking)
+    // Search OpenAlex journals using tokenized word matching.
+    // Each significant word must appear in display_name (AND logic),
+    // plus exact ISSN/publisher substring match as alternative.
+    const wordConditions = searchWords.length > 0
+      ? searchWords.map(() => `LOWER(display_name) LIKE ?`).join(' AND ')
+      : null;
+    const wordParams = searchWords.map(w => `%${w}%`);
+
+    const whereClauses: string[] = [];
+    const sqlParams: string[] = [];
+
+    if (wordConditions) {
+      whereClauses.push(`(${wordConditions})`);
+      sqlParams.push(...wordParams);
+    } else {
+      // All words were stop words or too short — fall back to full substring on display_name
+      whereClauses.push(`LOWER(display_name) LIKE LOWER(?)`);
+      sqlParams.push(searchPattern);
+    }
+
+    // Also match on ISSN or publisher with the full pattern
+    whereClauses.push(`LOWER(issn) LIKE LOWER(?)`);
+    sqlParams.push(searchPattern);
+    whereClauses.push(`LOWER(publisher) LIKE LOWER(?)`);
+    sqlParams.push(searchPattern);
+
     const openalexSql = `
       SELECT
         sourceid,
@@ -82,15 +120,13 @@ export async function GET(request: NextRequest) {
         is_oa,
         total_papers
       FROM journal_summary
-      WHERE LOWER(display_name) LIKE LOWER(?)
-         OR LOWER(issn) LIKE LOWER(?)
-         OR LOWER(publisher) LIKE LOWER(?)
+      WHERE ${whereClauses.join('\n         OR ')}
       ORDER BY total_papers DESC NULLS LAST
       LIMIT 40
     `;
 
     const openalexResults = await workerQuery<JournalSearchItem & { total_papers: number }>(
-      openalexSql, searchPattern, searchPattern, searchPattern
+      openalexSql, ...sqlParams
     );
 
     // Search Scopus-only journals using FTS for speed
