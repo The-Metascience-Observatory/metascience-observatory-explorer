@@ -11,7 +11,7 @@ import Link from "next/link";
 
 export default function HomePage() {
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
       {/* Five search sections - 2 rows */}
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-x-1 gap-y-1 mb-1">
@@ -76,7 +76,7 @@ export default function HomePage() {
       <div className="text-sm text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
         <p className="mb-3">
           The primary source of data for the Metascience Observatory Explorer is the 2025
-          <a href="https://northwestern-cssi.github.io/sciscinet/" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">
+           <a href="https://northwestern-cssi.github.io/sciscinet/" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">
             SciSciNet-V2 dataset
           </a>
           . If you find this explorer useful for your work, make sure to acknowledge and cite the{" "}
