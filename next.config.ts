@@ -61,4 +61,10 @@ const nextConfig: NextConfig = {
   },
 };
 
+// Runs middleware.ts in the Node.js runtime so it can read data/blocklist.json
+// from disk (the Edge runtime has no filesystem access). Next 15.5 honours this
+// flag at runtime but hasn't added it to ExperimentalConfig yet, hence the cast
+// and the "Unrecognized key" warning at build time.
+nextConfig.experimental = { nodeMiddleware: true } as NextConfig["experimental"];
+
 export default nextConfig;
