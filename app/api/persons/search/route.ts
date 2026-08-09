@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { ENTITY_COUNTS } from "@/lib/counts";
 import { errorResponse, validateQueryLength, parsePagination } from "@/lib/api-utils";
 import type { PersonSearchItem } from "@/lib/types";
 import { searchCaches, generateCacheKey } from "@/lib/search-cache";
@@ -155,18 +155,15 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const query = searchParams.get("q");
 
-  // If no query, return metadata about available authors
+  // If no query, return metadata about available authors.
+  // Use the static count instead of COUNT(*) on person_summary: that table has
+  // ~105M rows, so the scan is slow AND runs synchronously via getDb() on the
+  // main thread, stalling every other request. See lib/counts.ts.
   if (!query) {
-    try {
-      const db = getDb();
-      const countResult = db.prepare("SELECT COUNT(*) as count FROM person_summary").get() as { count: number };
-      return NextResponse.json({
-        total: countResult.count,
-        message: "Use ?q=search_term to search authors"
-      });
-    } catch (error) {
-      return errorResponse(error, "persons/search metadata");
-    }
+    return NextResponse.json({
+      total: ENTITY_COUNTS.persons,
+      message: "Use ?q=search_term to search authors"
+    });
   }
 
   // Validate query length (prevent DoS with extremely long queries)

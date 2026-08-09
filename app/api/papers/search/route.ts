@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
 import { errorResponse, validateQueryLength, parsePagination } from "@/lib/api-utils";
+import { ENTITY_COUNTS } from "@/lib/counts";
 import type { PaperSearchItem } from "@/lib/types";
 import { searchCaches, generateCacheKey } from "@/lib/search-cache";
 import { workerQuery } from "@/lib/worker-pool";
@@ -43,18 +43,15 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const query = searchParams.get("q");
 
-  // If no query, return metadata about available papers
+  // If no query, return metadata about available papers.
+  // Use the static count instead of COUNT(*) on paper_summary: that table has
+  // ~250M rows, so the scan takes ~8s AND runs synchronously via getDb() on the
+  // main thread, stalling every other request. See lib/counts.ts.
   if (!query) {
-    try {
-      const db = getDb();
-      const countResult = db.prepare("SELECT COUNT(*) as count FROM paper_summary").get() as { count: number };
-      return NextResponse.json({
-        total: countResult.count,
-        message: "Use ?q=search_term to search papers by title"
-      });
-    } catch (error) {
-      return errorResponse(error, "papers/search metadata");
-    }
+    return NextResponse.json({
+      total: ENTITY_COUNTS.papers,
+      message: "Use ?q=search_term to search papers by title"
+    });
   }
 
   // Validate query length (prevent DoS with extremely long queries)
