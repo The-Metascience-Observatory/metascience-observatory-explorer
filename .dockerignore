@@ -1,0 +1,44 @@
+# Dependencies
+node_modules
+npm-debug.log*
+
+# Build outputs
+.next
+out
+build
+dist
+
+# Data files (mounted as volume instead)
+data/
+
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.sublime-*
+
+# Misc
+.DS_Store
+*.pem
+.env*
+.tmp/
+memory
+
+# Documentation
+*.md
+*.ipynb
+
+# External data
+DOAJ_journals_list/
+scopus_journals_list/
+
+# Large files
+*.db
+*.sqlite
+*.parquet
+*.csv
+*.zip
+*.tar*

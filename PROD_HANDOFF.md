@@ -34,7 +34,33 @@ Under `<seagate mount>/openaire-deploy/` (find it with `ls /media/*/Seagate*/ope
 2. **Seagate mounted** and `copy.log` ends with `COPY VERIFIED OK`.
 3. **Sync safety**: prod `data/` already holds ~200+ GB of DBs — confirm whatever holds it (Dropbox exclusion, plain disk) won't try to sync/back up 95 GB of new files. The new files follow the exact pattern of the existing ones.
 
-### Troubleshooting: drive won't mount ("wrong fs type, bad option, bad superblock … missing codepage or helper program")
+### RESOLVED on prod (2026-08-11): dirty NTFS volume, kernel ntfs3 refused the mount
+
+The actual cause on the production machine — neither of the two guesses below. `ntfs-3g` **was**
+installed and the drive **was** healthy; udisks mounted via the kernel `ntfs3` driver, which
+refuses a volume whose dirty flag is set:
+
+```
+ntfs3(sda2): volume is dirty and "force" flag is not set!
+ntfs3(sda2): It is recommended to use chkdsk.
+```
+
+(The drive was not cleanly ejected on the dev machine, contrary to the note below.) The generic
+`wrong fs type, bad option, bad superblock …` message from udisks/Caja hides this — get the real
+error from `journalctl -b | grep -i ntfs` (no sudo needed) rather than `sudo dmesg`.
+
+Fix, now scripted as **`scripts/mount_seagate.sh`** (run it without sudo; it sudos internally):
+
+```bash
+sudo mount -t ntfs3 -o ro,force,uid=$(id -u),gid=$(id -g) /dev/sdX2 "/media/$USER/Seagate Portable Drive"
+```
+
+`ro` makes `force` safe — the deployment only reads. Do NOT run `ntfsfix`: it writes to the drive
+and isn't needed. The script finds the partition by UUID/fstype (note: `lsblk -r` escapes spaces
+in labels as `\x20`, so label matching silently fails), falls back to `ntfs-3g`, and verifies
+`copy.log`.
+
+### Older triage (kept for other machines): drive won't mount ("wrong fs type, bad option, bad superblock … missing codepage or helper program")
 
 The Seagate drive is **NTFS**. This error on a machine that hasn't mounted NTFS before almost always means the NTFS userspace driver is missing — it does NOT mean the drive is damaged. The drive was cleanly unmounted on the dev machine after the copy was checksum-verified. Work through these in order:
 
