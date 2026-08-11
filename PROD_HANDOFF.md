@@ -34,6 +34,36 @@ Under `<seagate mount>/openaire-deploy/` (find it with `ls /media/*/Seagate*/ope
 2. **Seagate mounted** and `copy.log` ends with `COPY VERIFIED OK`.
 3. **Sync safety**: prod `data/` already holds ~200+ GB of DBs — confirm whatever holds it (Dropbox exclusion, plain disk) won't try to sync/back up 95 GB of new files. The new files follow the exact pattern of the existing ones.
 
+### Troubleshooting: drive won't mount ("wrong fs type, bad option, bad superblock … missing codepage or helper program")
+
+The Seagate drive is **NTFS**. This error on a machine that hasn't mounted NTFS before almost always means the NTFS userspace driver is missing — it does NOT mean the drive is damaged. The drive was cleanly unmounted on the dev machine after the copy was checksum-verified. Work through these in order:
+
+```bash
+# 1. Confirm the partition is detected and intact.
+#    The data partition is the ~3.7 TB NTFS one, labeled "Seagate Portable Drive".
+#    The device name varies by machine (it was sdc2 on dev; may be sda2/sdb2 here).
+lsblk -f
+sudo blkid /dev/sdX2        # replace X — expect: TYPE="ntfs"
+
+# 2. If TYPE="ntfs" shows up, it's a driver problem. Install ntfs-3g:
+dpkg -l | grep ntfs         # likely empty
+sudo apt install ntfs-3g
+
+# 3. Unplug/replug the drive (or: sudo udisksctl mount -b /dev/sdX2).
+#    It should now mount under /media/<user>/Seagate Portable Drive/.
+```
+
+If it STILL fails with ntfs-3g installed:
+
+```bash
+sudo dmesg | tail -20       # get the real kernel error
+```
+
+- If dmesg mentions an **unclean/dirty volume or hibernation**: `sudo ntfsfix /dev/sdX2`, then remount. (Read-only fallback mounts are also fine for this deployment — we only need to READ from the drive.)
+- If dmesg shows **I/O errors** (hardware-level read failures): stop and report back — do not run repair tools. The original database files are intact on the dev machine (`~/openaire-build/`) and can be re-copied or rsynced instead.
+
+After mounting, always run the checksum verification (step 2 of Deployment steps below) before using the files.
+
 ## Deployment steps
 
 ```bash
