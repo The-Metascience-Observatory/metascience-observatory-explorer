@@ -7,4 +7,5 @@ export const ENTITY_COUNTS = {
   affiliations: 110_000,
   funders: 35_000,
   trials: 500_000,
+  openairePapers: 33_509_044, // first-class papers from the OpenAIRE Graph v11.1.1
 } as const;

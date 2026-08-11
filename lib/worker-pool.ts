@@ -19,6 +19,12 @@ interface WorkerWrapper {
   ready: boolean;
 }
 
+interface PoolOptions {
+  dbPath?: string;      // defaults to data/journals.db
+  cacheSize?: number;   // SQLite cache_size pragma (negative = KB)
+  mmapSize?: number;    // SQLite mmap_size pragma (bytes)
+}
+
 class DatabaseWorkerPool {
   private workers: WorkerWrapper[] = [];
   private pendingQueries: Map<number, PendingQuery> = new Map();
@@ -27,9 +33,11 @@ class DatabaseWorkerPool {
   private initialized = false;
   private initPromise: Promise<void> | null = null;
   private poolSize: number;
+  private options: PoolOptions;
 
-  constructor(poolSize: number = 4) {
+  constructor(poolSize: number = 4, options: PoolOptions = {}) {
     this.poolSize = poolSize;
+    this.options = options;
   }
 
   private async initialize(): Promise<void> {
@@ -42,7 +50,7 @@ class DatabaseWorkerPool {
 
   private async _doInitialize(): Promise<void> {
     const workerPath = path.join(process.cwd(), 'lib', 'db-worker.js');
-    const dbPath = path.join(process.cwd(), 'data', 'journals.db');
+    const dbPath = this.options.dbPath || path.join(process.cwd(), 'data', 'journals.db');
 
     const workerPromises: Promise<void>[] = [];
 
@@ -50,7 +58,11 @@ class DatabaseWorkerPool {
       const promise = new Promise<void>((resolve, reject) => {
         try {
           const worker = new Worker(workerPath, {
-            workerData: { dbPath }
+            workerData: {
+              dbPath,
+              cacheSize: this.options.cacheSize,
+              mmapSize: this.options.mmapSize
+            }
           });
 
           const wrapper: WorkerWrapper = { worker, ready: false };
@@ -183,4 +195,46 @@ export async function workerQuery<T>(sql: string, ...params: unknown[]): Promise
 
 export async function workerQueryOne<T>(sql: string, ...params: unknown[]): Promise<T | undefined> {
   return getWorkerPool().queryOne<T>(sql, ...params);
+}
+
+// ── Dedicated small pool for openaire.db ─────────────────────────────────────
+// FTS queries over ~33M OpenAIRE titles are too slow for the main thread.
+// openaire.db is optional: if the file is missing, pool init fails once and the
+// failure is cached — callers must catch and degrade (skip OpenAIRE results).
+
+import fs from 'fs';
+
+let openairePool: DatabaseWorkerPool | null = null;
+let openairePoolUnavailable = false;
+
+export function getOpenaireWorkerPool(): DatabaseWorkerPool | null {
+  if (openairePoolUnavailable) return null;
+  if (!openairePool) {
+    const dbPath = path.join(process.cwd(), 'data', 'openaire.db');
+    if (!fs.existsSync(dbPath)) {
+      openairePoolUnavailable = true;
+      return null;
+    }
+    openairePool = new DatabaseWorkerPool(2, {
+      dbPath,
+      cacheSize: -524288, // 512MB per worker
+      mmapSize: 2147483648 // 2GB mmap
+    });
+  }
+  return openairePool;
+}
+
+export async function openaireWorkerQuery<T>(sql: string, ...params: unknown[]): Promise<T[]> {
+  const p = getOpenaireWorkerPool();
+  if (!p) return [];
+  return p.query<T>(sql, ...params);
+}
+
+export async function openaireWorkerQueryOne<T>(
+  sql: string,
+  ...params: unknown[]
+): Promise<T | undefined> {
+  const p = getOpenaireWorkerPool();
+  if (!p) return undefined;
+  return p.queryOne<T>(sql, ...params);
 }

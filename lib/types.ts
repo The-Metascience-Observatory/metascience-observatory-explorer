@@ -355,8 +355,9 @@ export interface PaperSearchItem {
   title: string;
   doi: string | null;
   year: number | null;
-  cited_by_count: number;
+  cited_by_count: number | null; // null for OpenAIRE-sourced results
   source_name: string | null;
+  openaire?: boolean; // true when the paper comes from the OpenAIRE Graph
 }
 
 export interface JournalPublication {
@@ -628,4 +629,92 @@ export interface MeshDetails {
   childTerms: MeshRelatedTerm[];
   yearlyStats: MeshYearlyStats[];
   topJournals: MeshTopJournal[];
+}
+
+// ── OpenAIRE Graph enrichment (data/openaire.db) ──────────────────────────────
+
+export interface OpenairePaperInfo {
+  oaColor: string | null; // 'gold' | 'green' | 'bronze' | 'hybrid'
+  bestAccessRight: string | null; // 'OPEN' | 'CLOSED' | 'EMBARGO' | 'RESTRICTED'
+  isGreen: boolean | null;
+  isDiamond: boolean | null;
+  publiclyFunded: boolean | null;
+}
+
+export interface OpenaireProject {
+  openaireProjectId: string;
+  code: string | null;
+  acronym: string | null;
+  title: string | null;
+  funderShortname: string | null;
+  fundingStream: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  fundedAmount?: number | null;
+  currency?: string | null;
+}
+
+export interface OpenaireLinkedProduct {
+  productType: string; // 'dataset' | 'software' | 'other'
+  title: string | null;
+  doi: string | null;
+  relation: string | null;
+  year: number | null;
+}
+
+export interface OpenaireOrgInfo {
+  openaireOrgId: string;
+  legalName: string | null;
+  countryCode: string | null;
+  projectCount: number;
+  projects: OpenaireProject[];
+}
+
+export interface PaperOpenaireResponse {
+  openaire: OpenairePaperInfo | null;
+  projects: OpenaireProject[];
+  linkedProducts: OpenaireLinkedProduct[];
+}
+
+// ── First-class OpenAIRE papers (openaire_papers in data/openaire.db) ─────────
+
+export interface OpenairePaperSummary {
+  id: string; // 'OA' + 32-hex
+  doi: string;
+  pmid: string | null;
+  title: string | null;
+  subtitle: string | null;
+  publicationDate: string | null;
+  year: number | null;
+  type: string | null;
+  language: string | null;
+  publisher: string | null;
+  journalName: string | null;
+  issnPrinted: string | null;
+  issnOnline: string | null;
+  matchedSourceid: string | null;
+  volume: string | null;
+  issue: string | null;
+  startPage: string | null;
+  endPage: string | null;
+  bestAccessRight: string | null;
+  oaColor: string | null;
+  isGreen: boolean | null;
+  isDiamond: boolean | null;
+  publiclyFunded: boolean | null;
+  authorCount: number;
+  hasAbstract: boolean;
+}
+
+export interface OpenairePaperAuthor {
+  rank: number;
+  fullName: string | null;
+  orcid: string | null;
+  matchedAuthorid: string | null;
+}
+
+export interface OpenairePaperDetails {
+  summary: OpenairePaperSummary;
+  authors: OpenairePaperAuthor[];
+  journalDisplayName: string | null;
 }

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { AffiliationDetails } from "@/lib/types";
+import type { AffiliationDetails, OpenaireOrgInfo } from "@/lib/types";
 import { formatNumber } from "@/lib/utils";
 import {
   ArrowLeft,
@@ -14,6 +14,7 @@ import {
   Handshake,
   Building2,
   ChevronDown,
+  Landmark,
 } from "lucide-react";
 
 const typeColors: Record<string, string> = {
@@ -35,6 +36,24 @@ export default function AffiliationDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAllResearchers, setShowAllResearchers] = useState(false);
+
+  // OpenAIRE org enrichment (project portfolio via funder-declared participation)
+  const [openaireOrg, setOpenaireOrg] = useState<OpenaireOrgInfo | null>(null);
+
+  useEffect(() => {
+    async function fetchOpenaireOrg() {
+      try {
+        const res = await fetch(`/api/affiliations/${institutionid}/openaire`);
+        if (res.ok) {
+          const json = await res.json();
+          setOpenaireOrg(json.org);
+        }
+      } catch (e) {
+        console.error("Failed to fetch OpenAIRE org data:", e);
+      }
+    }
+    fetchOpenaireOrg();
+  }, [institutionid]);
 
   useEffect(() => {
     async function fetchData() {
@@ -320,6 +339,81 @@ export default function AffiliationDetailPage() {
                 </Link>
               ))}
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Funded Projects (OpenAIRE) */}
+      {openaireOrg && openaireOrg.projects.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Landmark className="h-5 w-5" />
+              Funded Projects ({formatNumber(openaireOrg.projectCount)})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {openaireOrg.projects.map((project) => (
+                <div
+                  key={project.openaireProjectId}
+                  className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="font-medium">
+                        {project.acronym || project.code || "Untitled project"}
+                        {project.funderShortname && (
+                          <span className="ml-2 px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                            {project.funderShortname}
+                          </span>
+                        )}
+                      </div>
+                      {project.title && (
+                        <div className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
+                          {project.title}
+                        </div>
+                      )}
+                      <div className="text-xs text-gray-500 mt-1">
+                        {[
+                          project.code,
+                          [project.startDate?.slice(0, 4), project.endDate?.slice(0, 4)]
+                            .filter(Boolean)
+                            .join("–"),
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      {project.fundedAmount ? (
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          {formatNumber(Math.round(project.fundedAmount))}{" "}
+                          {project.currency || ""}
+                        </span>
+                      ) : null}
+                      {project.funderShortname === "EC" && project.code && (
+                        <a
+                          href={`https://cordis.europa.eu/project/id/${project.code}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 inline-flex items-center gap-1 text-xs"
+                        >
+                          CORDIS <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {openaireOrg.projectCount > openaireOrg.projects.length && (
+              <div className="text-xs text-gray-500 mt-3">
+                Showing top {openaireOrg.projects.length} of{" "}
+                {formatNumber(openaireOrg.projectCount)} projects by funded amount.
+              </div>
+            )}
+            <div className="text-xs text-gray-400 mt-2">Source: OpenAIRE Graph</div>
           </CardContent>
         </Card>
       )}
