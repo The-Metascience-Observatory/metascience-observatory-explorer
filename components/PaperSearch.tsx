@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { PaperCard } from "@/components/PaperCard";
 import type { PaperSearchItem } from "@/lib/types";
-import { ENTITY_COUNTS } from "@/lib/counts";
+import { SEARCHABLE_PAPERS } from "@/lib/counts";
 import { Search, Loader2 } from "lucide-react";
 
 interface PaperSearchProps {
@@ -95,7 +95,7 @@ export function PaperSearch({ compact = false }: PaperSearchProps) {
       {/* Subtitle with count */}
       {compact && (
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-          Search through {ENTITY_COUNTS.papers.toLocaleString()} papers
+          Search through {SEARCHABLE_PAPERS.toLocaleString()} papers
         </p>
       )}
 
@@ -145,7 +145,7 @@ export function PaperSearch({ compact = false }: PaperSearchProps) {
 
       {!compact && query.length === 0 && (
         <div className="mt-6 text-center text-gray-500">
-          <p>Search through {ENTITY_COUNTS.papers.toLocaleString()} papers</p>
+          <p>Search through {SEARCHABLE_PAPERS.toLocaleString()} papers</p>
           <p className="text-sm mt-1">
             Search by title to find academic publications
           </p>
