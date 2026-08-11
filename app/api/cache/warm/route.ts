@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { searchCaches, generateCacheKey } from "@/lib/search-cache";
-import { workerQuery } from "@/lib/worker-pool";
+import { workerQuery, openaireWorkerQuery, getOpenaireWorkerPool } from "@/lib/worker-pool";
 
 /**
  * Cache warming endpoint - preloads common searches into memory
@@ -35,6 +35,51 @@ const COMMON_AFFILIATION_QUERIES = [
   "max planck", "nih", "cdc", "who",
 ];
 
+const OPENAIRE_WARM_TIMEOUT_MS = 10000;
+
+// The paper search route appends OpenAIRE first-class papers to the first page
+// and caches the COMBINED payload under the same key we write here. Warming with
+// SciSciNet-only rows would poison that cache: warmed queries would show no
+// OpenAIRE results until the TTL expired. So warm the OpenAIRE leg too — which
+// doubles as page-cache warming for the cold 47GB openaire.db FTS.
+// Returns [] when OpenAIRE is genuinely unavailable, or null when the answer is
+// unknown (slow/errored) so the caller can leave the key unwarmed instead.
+async function warmOpenairePapers(
+  ftsQuery: string
+): Promise<Record<string, unknown>[] | null> {
+  // Missing openaire.db isn't an error — the search route would also return
+  // SciSciNet-only results, so caching those is correct.
+  if (!getOpenaireWorkerPool()) return [];
+
+  // Exact-token MATCH: the openaire FTS has no prefix indexes, so prefix terms
+  // must be stripped (mirrors app/api/papers/search/route.ts).
+  const openaireFtsQuery = ftsQuery.replaceAll('"*', '"').replaceAll("*", "");
+  if (!openaireFtsQuery) return [];
+
+  const sql = `
+    SELECT p.id AS paperid, p.title, p.doi, p.year,
+           NULL AS cited_by_count, p.journal_name AS source_name
+    FROM openaire_title_fts f
+    JOIN openaire_papers p ON p.rowid = f.rowid
+    WHERE openaire_title_fts MATCH ?
+    ORDER BY rank
+    LIMIT 10
+  `;
+
+  // Warming runs in the background, so it can wait far longer than the search
+  // route's 2s guard — but never indefinitely.
+  const raced = await Promise.race([
+    openaireWorkerQuery<Record<string, unknown>>(sql, openaireFtsQuery).then(
+      (rows) => ({ rows })
+    ),
+    new Promise<{ rows: null }>((resolve) =>
+      setTimeout(() => resolve({ rows: null }), OPENAIRE_WARM_TIMEOUT_MS)
+    ),
+  ]).catch(() => ({ rows: null }));
+
+  return raced.rows;
+}
+
 export async function POST() {
   const startTime = Date.now();
   const results = {
@@ -64,9 +109,23 @@ export async function POST() {
           const hasMore = rawResults.length > 50;
           if (hasMore) rawResults.pop();
 
+          const openaireResults = await warmOpenairePapers(ftsQuery);
+          if (openaireResults === null) {
+            // Too slow or errored — leave this key unwarmed so the first real
+            // request builds the correct combined response.
+            results.papers.errors++;
+            continue;
+          }
+
+          // Same shape the search route produces: OpenAIRE rows appended after
+          // SciSciNet's (they have no citation counts to rank by).
+          const combined = rawResults.concat(
+            openaireResults.map((r) => ({ ...r, openaire: true }))
+          );
+
           searchCaches.papers.set(cacheKey, {
-            results: rawResults,
-            total: hasMore ? -1 : rawResults.length,
+            results: combined,
+            total: hasMore ? -1 : combined.length,
             offset: 0,
             limit: 50,
             hasMore
