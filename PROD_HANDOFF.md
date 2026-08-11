@@ -53,16 +53,35 @@ sudo apt install ntfs-3g
 #    It should now mount under /media/<user>/Seagate Portable Drive/.
 ```
 
-If it STILL fails with ntfs-3g installed:
+### If ntfs-3g IS installed and it still won't mount
+
+**CONFIRMED SITUATION ON PROD (2026-08-11)**: ntfs-3g is installed, Caja still fails. The most likely cause is the kernel's built-in `ntfs3` driver intercepting the mount — udisks/Caja prefers it on newer kernels, and it rejects volumes (dirty-flag, unsupported features) that ntfs-3g mounts fine. Work through this decision tree:
 
 ```bash
-sudo dmesg | tail -20       # get the real kernel error
+# 1. Confirm you're mounting the RIGHT partition. On many machines /dev/sda is
+#    the INTERNAL disk — Caja's error naming sda2 may not even be the Seagate.
+#    The Seagate data partition is the ~3.7 TB NTFS one labeled "Seagate Portable Drive".
+lsblk -f -o NAME,FSTYPE,LABEL,SIZE,MOUNTPOINT
+
+# 2. Get the real kernel error (look for lines from ntfs3 or ntfs-3g):
+sudo dmesg | tail -20
+
+# 3. Bypass the kernel driver: mount explicitly with ntfs-3g, READ-ONLY.
+#    (ro is deliberate — deployment only reads from the drive, and ro sidesteps
+#    every dirty-flag complication.)
+sudo mkdir -p /mnt/seagate
+sudo mount -t ntfs-3g -o ro /dev/sdX2 /mnt/seagate    # sdX2 from step 1
+ls /mnt/seagate/openaire-deploy/                       # expect the two .db files + SHA256SUMS
 ```
 
-- If dmesg mentions an **unclean/dirty volume or hibernation**: `sudo ntfsfix /dev/sdX2`, then remount. (Read-only fallback mounts are also fine for this deployment — we only need to READ from the drive.)
-- If dmesg shows **I/O errors** (hardware-level read failures): stop and report back — do not run repair tools. The original database files are intact on the dev machine (`~/openaire-build/`) and can be re-copied or rsynced instead.
+If the explicit ntfs-3g mount ALSO fails, interpret its error + dmesg:
 
-After mounting, always run the checksum verification (step 2 of Deployment steps below) before using the files.
+- **Unclean/dirty volume or Windows hibernation message**: `sudo ntfsfix /dev/sdX2`, then retry step 3.
+- **I/O errors** (hardware-level read failures): STOP — do not run repair tools. Report back; the original database files are intact on the dev machine (`~/openaire-build/`) and can be re-copied to another drive or rsynced over the network instead.
+
+**Note**: if you mounted manually at `/mnt/seagate`, use `DEPLOY="/mnt/seagate/openaire-deploy"` in the Deployment steps below instead of the `/media/...` glob.
+
+After mounting by any route, always run the checksum verification (step 2 of Deployment steps below) before using the files.
 
 ## Deployment steps
 
