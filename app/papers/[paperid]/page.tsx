@@ -8,9 +8,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PaperCitationsChart, CitationViewMode } from "@/components/PaperCitationsChart";
 import { ListItemLink } from "@/components/ListItemLink";
 import { PaperListCard } from "@/components/PaperListCard";
-import type { PaperDetails, PaperCitation, MeshTerm } from "@/lib/types";
+import type { PaperDetails, PaperCitation, MeshTerm, PaperOpenaireResponse } from "@/lib/types";
 import { formatNumber } from "@/lib/utils";
 import LitePaperPage from "./LitePaperPage";
+import {
+  OpenAccessBadges,
+  OpenaireFundingSection,
+  OpenaireLinkedProductsSection,
+} from "@/components/OpenairePanels";
 import {
   ArrowLeft,
   ExternalLink,
@@ -210,6 +215,10 @@ export default function PaperDetailPage() {
   const [meshLoading, setMeshLoading] = useState(true);
   const [showAllMesh, setShowAllMesh] = useState(false);
 
+  // OpenAIRE enrichment state (OA status, funding, linked datasets/software)
+  const [openaireData, setOpenaireData] = useState<PaperOpenaireResponse | null>(null);
+  const [openaireLoading, setOpenaireLoading] = useState(true);
+
   // Infinite scroll state for citations
   const [displayedCitations, setDisplayedCitations] = useState<PaperCitation[]>([]);
   const [citationsLoading, setCitationsLoading] = useState(false);
@@ -317,6 +326,23 @@ export default function PaperDetailPage() {
       }
     }
     fetchRetraction();
+  }, [paperid]);
+
+  // Lazy load OpenAIRE enrichment (OA status, funding, linked products)
+  useEffect(() => {
+    async function fetchOpenaire() {
+      try {
+        const res = await fetch(`/api/papers/${paperid}/openaire`);
+        if (res.ok) {
+          setOpenaireData(await res.json());
+        }
+      } catch (e) {
+        console.error("Failed to fetch OpenAIRE data:", e);
+      } finally {
+        setOpenaireLoading(false);
+      }
+    }
+    fetchOpenaire();
   }, [paperid]);
 
   // Lazy load MeSH terms (waits for extra data to get PMID if available)
@@ -708,12 +734,18 @@ export default function PaperDetailPage() {
               )}
             </div>
 
-            {/* Paratext badge */}
-            {!extraLoading && metadata?.isParatext && (
+            {/* Paratext + open-access badges */}
+            {((!extraLoading && metadata?.isParatext) ||
+              (!openaireLoading && openaireData?.openaire)) && (
               <div className="flex flex-wrap gap-2 mb-4">
-                <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 rounded">
-                  Paratext
-                </span>
+                {!extraLoading && metadata?.isParatext && (
+                  <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 rounded">
+                    Paratext
+                  </span>
+                )}
+                {!openaireLoading && openaireData?.openaire && (
+                  <OpenAccessBadges info={openaireData.openaire} />
+                )}
               </div>
             )}
 
@@ -835,6 +867,16 @@ export default function PaperDetailPage() {
                   ))}
                 </div>
               </div>
+            )}
+
+            {/* Funding (OpenAIRE projects/grants) */}
+            {!openaireLoading && openaireData && (
+              <OpenaireFundingSection projects={openaireData.projects} />
+            )}
+
+            {/* Linked datasets & software (OpenAIRE) */}
+            {!openaireLoading && openaireData && (
+              <OpenaireLinkedProductsSection products={openaireData.linkedProducts} />
             )}
 
             {/* Patents - merge from main API and extra API, dedupe by patent ID */}

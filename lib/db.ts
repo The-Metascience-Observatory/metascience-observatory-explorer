@@ -7,6 +7,8 @@ let abstractsDb: Database.Database | null = null;
 let papersExtraDb: Database.Database | null = null;
 let retractionsDb: Database.Database | null = null;
 let meshDb: Database.Database | null = null;
+let openaireDb: Database.Database | null = null;
+let openaireAbstractsDb: Database.Database | null = null;
 
 export function getDb(): Database.Database {
   if (!db) {
@@ -187,6 +189,34 @@ export function getMeshDb(): Database.Database | null {
     }
   }
   return meshDb;
+}
+
+// Get OpenAIRE Graph database (projects/grants, OA status, linked products, orgs)
+export function getOpenaireDb(): Database.Database | null {
+  if (openaireDb === null) {
+    try {
+      const dbPath = path.join(process.cwd(), "data", "openaire.db");
+      openaireDb = new Database(dbPath, { readonly: true, fileMustExist: true });
+    } catch {
+      // openaire.db may not exist - return null
+      return null;
+    }
+  }
+  return openaireDb;
+}
+
+// Get OpenAIRE abstracts database (abstracts for first-class OpenAIRE papers)
+export function getOpenaireAbstractsDb(): Database.Database | null {
+  if (openaireAbstractsDb === null) {
+    try {
+      const dbPath = path.join(process.cwd(), "data", "openaire_abstracts.db");
+      openaireAbstractsDb = new Database(dbPath, { readonly: true, fileMustExist: true });
+    } catch {
+      // openaire_abstracts.db may not exist - return null
+      return null;
+    }
+  }
+  return openaireAbstractsDb;
 }
 
 // Helper to check if database exists and is accessible

@@ -30,6 +30,7 @@ Built on the [SciSciNet](https://github.com/kellogg-cssi/SciSciNet) open data la
 | [Crossref Event Data](https://www.crossref.org/services/event-data/) | Crossref | News and media coverage of papers |
 | [Twitter/X](https://twitter.com/) | Twitter | Social media mentions of papers |
 | [Nobel Laureates Dataset](https://doi.org/10.6084/m9.figshare.c.6076908.v1) | SciSciNet | Publications of Nobel Prize winners (87K+ paper-laureate links) |
+| [OpenAIRE Graph](https://graph.openaire.eu/) | OpenAIRE | Open-access status, EU/national grant links (3.9M projects), linked datasets/software, org project portfolios, plus 33.5M additional papers not in SciSciNet (CC-BY; v11.1.1 bulk dump) |
 
 ### Live APIs (Real-time Enrichment)
 
@@ -88,3 +89,4 @@ Open [http://localhost:3000](http://localhost:3000) to view the dashboard.
 ## References
 
 - Lin, Z., Yin, Y., Liu, L., & Wang, D. (2023). SciSciNet: A large-scale open data lake for the science of science research. *Scientific Data*, 10, 315. https://doi.org/10.1038/s41597-023-02198-9
+- Manghi, P., Atzori, C., Bardi, A., et al. OpenAIRE Graph Dataset (v11.1.1). *Zenodo*. https://doi.org/10.5281/zenodo.3516917 — used under CC-BY 4.0.

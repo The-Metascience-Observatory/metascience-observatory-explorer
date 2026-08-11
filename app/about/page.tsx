@@ -206,6 +206,32 @@ export default function AboutPage() {
         <ul className="list-disc pl-6 space-y-2">
           <li>
             <a
+              href="https://graph.openaire.eu/"
+              className="text-blue-600 hover:underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              OpenAIRE Graph
+            </a>{" "}
+            (v11.1.1, June 2026, CC-BY 4.0) — open-access status
+            (gold/green/bronze/hybrid/diamond), links from papers to 3.9M
+            funded projects (European Commission and ~40 national funders),
+            linked research datasets and software, institutional project
+            portfolios, and 33.5M additional DOI-bearing papers not present
+            in SciSciNet. Manghi, P., Atzori, C., Bardi, A., et al.{" "}
+            <em>OpenAIRE Graph Dataset</em>, Zenodo,{" "}
+            <a
+              href="https://doi.org/10.5281/zenodo.3516917"
+              className="text-blue-600 hover:underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              doi:10.5281/zenodo.3516917
+            </a>
+            .
+          </li>
+          <li>
+            <a
               href="https://www.scopus.com/sources"
               className="text-blue-600 hover:underline"
               target="_blank"

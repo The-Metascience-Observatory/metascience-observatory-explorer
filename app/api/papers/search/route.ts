@@ -3,7 +3,7 @@ import { errorResponse, validateQueryLength, parsePagination } from "@/lib/api-u
 import { ENTITY_COUNTS } from "@/lib/counts";
 import type { PaperSearchItem } from "@/lib/types";
 import { searchCaches, generateCacheKey } from "@/lib/search-cache";
-import { workerQuery } from "@/lib/worker-pool";
+import { workerQuery, openaireWorkerQuery } from "@/lib/worker-pool";
 
 /**
  * Sanitize a word for FTS5 query.
@@ -95,8 +95,36 @@ export async function GET(request: NextRequest) {
       LIMIT ? OFFSET ?
     `;
 
+    // OpenAIRE first-class papers: search their FTS in parallel on the dedicated
+    // small pool. First page only; failure or missing DB degrades to no extras.
+    // Exact-token MATCH (no `*` prefix) — the openaire FTS has no prefix indexes,
+    // so prefix queries would scan millions of doclist entries. A 2s race keeps
+    // a slow OpenAIRE leg from ever delaying the main results.
+    const openaireFtsQuery = ftsQuery.replaceAll('"*', '"').replaceAll("*", "");
+    const openairePromise: Promise<PaperSearchItem[]> =
+      offset === 0 && openaireFtsQuery
+        ? Promise.race([
+            openaireWorkerQuery<PaperSearchItem>(
+              `SELECT p.id AS paperid, p.title, p.doi, p.year,
+                      NULL AS cited_by_count, p.journal_name AS source_name
+               FROM openaire_title_fts f
+               JOIN openaire_papers p ON p.rowid = f.rowid
+               WHERE openaire_title_fts MATCH ?
+               ORDER BY rank
+               LIMIT 10`,
+              openaireFtsQuery
+            ),
+            new Promise<PaperSearchItem[]>((resolve) =>
+              setTimeout(() => resolve([]), 2000)
+            ),
+          ]).catch(() => [])
+        : Promise.resolve([]);
+
     // Run query in worker thread to avoid blocking the main event loop
-    const results = await workerQuery<PaperSearchItem>(sql, ftsQuery, limit + 1, offset);
+    const [results, openaireResults] = await Promise.all([
+      workerQuery<PaperSearchItem>(sql, ftsQuery, limit + 1, offset),
+      openairePromise,
+    ]);
 
     // Check if there are more results beyond this page
     const hasMore = results.length > limit;
@@ -104,9 +132,14 @@ export async function GET(request: NextRequest) {
       results.pop(); // Remove the extra result used for hasMore detection
     }
 
+    // Append OpenAIRE results after SciSciNet's (no citation counts to rank by)
+    const combined = results.concat(
+      openaireResults.map((r) => ({ ...r, openaire: true }))
+    );
+
     const response = {
-      results,
-      total: hasMore ? -1 : offset + results.length, // -1 indicates unknown total (has more pages)
+      results: combined,
+      total: hasMore ? -1 : offset + combined.length, // -1 indicates unknown total (has more pages)
       offset,
       limit,
       hasMore

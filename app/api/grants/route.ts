@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCachedGrants, setCachedGrant } from "@/lib/db";
+import { getCachedGrants, setCachedGrant, getOpenaireDb } from "@/lib/db";
 import { fetchWithTimeout } from "@/lib/api-utils";
 
 export interface GrantDetails {
@@ -99,9 +99,18 @@ function getFunderUrl(awardId: string, funderName: string | null | undefined): s
 }
 
 // Identify funder type from name
-function identifyFunderType(funderName: string | null | undefined): 'NIH' | 'NSF' | 'OTHER' {
+function identifyFunderType(funderName: string | null | undefined): 'NIH' | 'NSF' | 'EC' | 'OTHER' {
   if (!funderName) return 'OTHER';
   const lower = funderName.toLowerCase();
+
+  // European Commission / EU framework programmes (resolved locally via openaire.db)
+  const ecPatterns = [
+    'european commission', 'european research council', 'european union',
+    'horizon 2020', 'horizon europe', 'h2020', 'fp7', 'erc'
+  ];
+  if (ecPatterns.some(p => lower.includes(p)) || lower === 'ec' || lower === 'eu') {
+    return 'EC';
+  }
 
   // NIH institutes and centers
   const nihPatterns = [
@@ -123,6 +132,61 @@ function identifyFunderType(funderName: string | null | undefined): 'NIH' | 'NSF
   }
 
   return 'OTHER';
+}
+
+interface OpenaireProjectRow {
+  code: string;
+  acronym: string | null;
+  title: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  funded_amount: number | null;
+  total_cost: number | null;
+}
+
+// Resolve an EC/Horizon grant code from the local OpenAIRE projects table.
+// EC grant agreement numbers are 6-digit (FP7/H2020, e.g. 695402) or 9-digit
+// (Horizon Europe, e.g. 101017441) codes; award strings often embed them in
+// longer identifiers, so try every digit run, longest first.
+function lookupEcProject(awardId: string): Partial<GrantDetails> | null {
+  try {
+    const db = getOpenaireDb();
+    if (!db) return null;
+
+    const codes = [...cleanGrantId(awardId).matchAll(/\d{5,9}/g)]
+      .map(m => m[0])
+      .sort((a, b) => b.length - a.length);
+    if (codes.length === 0) return null;
+
+    // Same code can recur across FP7/H2020/Horizon Europe — prefer the most recent
+    const stmt = db.prepare(
+      `SELECT code, acronym, title, start_date, end_date, funded_amount, total_cost
+       FROM projects
+       WHERE funder_shortname = 'EC' AND code = ?
+       ORDER BY start_date DESC
+       LIMIT 1`
+    );
+    let row: OpenaireProjectRow | undefined;
+    for (const code of codes) {
+      row = stmt.get(code) as OpenaireProjectRow | undefined;
+      if (row) break;
+    }
+    if (!row) return null;
+
+    const title = row.acronym && row.title
+      ? `${row.acronym}: ${row.title}`
+      : (row.title || row.acronym);
+    return {
+      title: title || null,
+      amount: row.funded_amount || row.total_cost || null,
+      start_date: row.start_date,
+      end_date: row.end_date,
+      url: `https://cordis.europa.eu/project/id/${row.code}`
+    };
+  } catch (error) {
+    console.error('Error looking up EC project in openaire.db:', error);
+    return null;
+  }
 }
 
 async function fetchNIHGrantDetails(awardId: string): Promise<Partial<GrantDetails> | null> {
@@ -243,6 +307,13 @@ export async function GET(request: Request) {
         url: getNSFUrl(awardId)
       };
     }
+  } else if (funderType === 'EC') {
+    details = lookupEcProject(awardId);
+    if (!details) {
+      details = {
+        url: getFunderUrl(awardId, funderName)
+      };
+    }
   } else {
     // For other funders, just provide URL if available
     details = {
@@ -306,6 +377,7 @@ export async function POST(request: Request) {
     // Group uncached grants by funder type for batch processing
     const nihGrants: Array<{ award_id: string; funder: string }> = [];
     const nsfGrants: Array<{ award_id: string; funder: string }> = [];
+    const ecGrants: Array<{ award_id: string; funder: string }> = [];
     const otherGrants: Array<{ award_id: string; funder: string }> = [];
 
     for (const grant of uncachedGrants) {
@@ -314,9 +386,27 @@ export async function POST(request: Request) {
         nihGrants.push(grant);
       } else if (funderType === 'NSF') {
         nsfGrants.push(grant);
+      } else if (funderType === 'EC') {
+        ecGrants.push(grant);
       } else {
         otherGrants.push(grant);
       }
+    }
+
+    // EC grants resolve locally from openaire.db — no external API, no cache writes
+    for (const grant of ecGrants) {
+      const details = lookupEcProject(grant.award_id);
+      results.push({
+        award_id: grant.award_id,
+        funder: grant.funder,
+        title: details?.title || null,
+        amount: details?.amount || null,
+        start_date: details?.start_date || null,
+        end_date: details?.end_date || null,
+        pi_name: null,
+        organization: null,
+        url: details?.url || getFunderUrl(grant.award_id, grant.funder)
+      });
     }
 
     // Fetch NIH grants - can batch up to a few at once

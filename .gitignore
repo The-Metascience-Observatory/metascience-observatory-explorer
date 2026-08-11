@@ -84,3 +84,4 @@ memory
 # external data directories
 DOAJ_journals_list/
 scopus_journals_list/
+scripts/__pycache__/

@@ -14,8 +14,10 @@ interface PaperCardProps {
 }
 
 export const PaperCard = memo(function PaperCard({ paper, compact = false }: PaperCardProps) {
+  const href = paper.openaire ? `/papers/openaire/${paper.paperid}` : `/papers/${paper.paperid}`;
+  const cites = paper.cited_by_count;
   return (
-    <Link href={`/papers/${paper.paperid}`}>
+    <Link href={href}>
       <Card className={`${compact ? "p-2" : "p-4"} hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors cursor-pointer`}>
         <div className={`flex items-start ${compact ? "gap-2" : "gap-3"}`}>
           {!compact && (
@@ -28,9 +30,14 @@ export const PaperCard = memo(function PaperCard({ paper, compact = false }: Pap
               <h3 className={`${compact ? "text-sm" : ""} font-medium line-clamp-2`}>
                 <PaperTitle title={paper.title} />
               </h3>
-              {!compact && paper.cited_by_count >= 100 && (
+              {paper.openaire && (
+                <span className="flex-shrink-0 px-1.5 py-0.5 text-xs bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200 rounded">
+                  OpenAIRE
+                </span>
+              )}
+              {!compact && cites != null && cites >= 100 && (
                 <span className="flex-shrink-0 px-1.5 py-0.5 text-xs bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 rounded">
-                  {formatNumber(paper.cited_by_count)} cites
+                  {formatNumber(cites)} cites
                 </span>
               )}
             </div>
@@ -42,8 +49,8 @@ export const PaperCard = memo(function PaperCard({ paper, compact = false }: Pap
                 {paper.source_name && (
                   <span className="truncate">{paper.source_name}</span>
                 )}
-                {paper.cited_by_count < 100 && (
-                  <span>{formatNumber(paper.cited_by_count)} citations</span>
+                {cites != null && cites < 100 && (
+                  <span>{formatNumber(cites)} citations</span>
                 )}
               </div>
             )}
@@ -51,7 +58,7 @@ export const PaperCard = memo(function PaperCard({ paper, compact = false }: Pap
               <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-500">
                 {paper.year && <span>{paper.year}</span>}
                 {paper.source_name && <span className="truncate max-w-[150px]">{paper.source_name}</span>}
-                <span>{formatNumber(paper.cited_by_count)} cites</span>
+                {cites != null && <span>{formatNumber(cites)} cites</span>}
               </div>
             )}
           </div>
