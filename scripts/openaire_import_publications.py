@@ -9,7 +9,7 @@ For each of the 218M publication records:
         (finalized into first-class `openaire_papers` by openaire_finalize_new_papers.py)
   * no match, no DOI → dropped (scope decision: DOI-bearing only)
 
-Field paths verified against dump v11.1.1 (see HANDOFF.md):
+Field paths verified against dump v11.1.1 (see CLAUDE.md):
   id (no '50|' prefix), pids[{scheme,value}], bestAccessRight.label, openAccessColor,
   isGreen, isInDiamondJournal, publiclyFunded, mainTitle/subTitle, container.*,
   authors[{fullName,rank,pid.id.{scheme,value}}] (link only scheme=='orcid';

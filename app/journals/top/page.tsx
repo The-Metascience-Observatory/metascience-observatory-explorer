@@ -1,282 +1,85 @@
-"use client";
-
-import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { JsonLd } from "@/components/JsonLd";
+import { Pagination } from "@/components/BrowseList";
+import { getTopJournalsPage } from "@/lib/queries/journals-top";
+import { breadcrumbLd } from "@/lib/jsonld";
 import { formatNumber } from "@/lib/utils";
-import { ArrowLeft, Loader2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
-import type { TopJournalsResponse } from "@/app/api/journals/top/route";
+import PageClient from "./PageClient";
 
-type SortField = 'impact_factor_2yr' | 'impact_factor_5yr' | 'citescore' | 'total_papers' | 'total_citations';
+export const revalidate = 86400;
 
-const SORT_LABELS: Record<SortField, string> = {
-  impact_factor_2yr: '2-Year IF',
-  impact_factor_5yr: '5-Year IF',
-  citescore: 'CiteScore',
-  total_papers: 'Papers',
-  total_citations: 'Citations',
-};
+const PER_PAGE = 50;
+const TITLE = "Top Journals by Impact Factor";
+const DESCRIPTION =
+  "Academic journals ranked by 2-year impact factor, with CiteScore, total " +
+  "papers and citation counts. Filter by research field or sort by any metric.";
 
-export default function TopJournalsPage() {
-  const [data, setData] = useState<TopJournalsResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+/**
+ * Cap on crawlable pagination depth. There are ~1,460 pages of journals; the
+ * long tail past this point is thin and eats crawl budget, so those pages are
+ * marked noindex but still followed, which keeps their links discoverable.
+ */
+const MAX_INDEXED_PAGE = 100;
 
-  // State for sorting and filtering
-  const [sortField, setSortField] = useState<SortField>('impact_factor_2yr');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [selectedField, setSelectedField] = useState<string>('');
-  const [page, setPage] = useState(1);
+type Props = { searchParams: Promise<{ page?: string }> };
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        sort: sortField,
-        order: sortOrder,
-        page: page.toString(),
-        limit: '50',
-      });
-      if (selectedField) {
-        params.set('field', selectedField);
-      }
+function parsePage(raw: string | undefined): number {
+  const n = Number.parseInt(raw ?? "1", 10);
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
 
-      const res = await fetch(`/api/journals/top?${params}`);
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || `HTTP ${res.status}`);
-      }
-      const json = await res.json();
-      setData(json);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load journals");
-    } finally {
-      setLoading(false);
-    }
-  }, [sortField, sortOrder, selectedField, page]);
+export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
+  const page = parsePage((await searchParams).page);
+  const suffix = page > 1 ? ` — Page ${page}` : "";
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  const handleSort = (field: SortField) => {
-    if (field === sortField) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortOrder('desc');
-    }
-    setPage(1);
+  return {
+    title: `${TITLE}${suffix}`,
+    description: DESCRIPTION,
+    alternates: { canonical: page > 1 ? `/journals/top?page=${page}` : "/journals/top" },
+    robots:
+      page > MAX_INDEXED_PAGE
+        ? { index: false, follow: true }
+        : { index: true, follow: true },
+    openGraph: { title: `${TITLE}${suffix}`, description: DESCRIPTION },
   };
+}
 
-  const handleFieldChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedField(e.target.value);
-    setPage(1);
-  };
-
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (field !== sortField) return null;
-    return sortOrder === 'asc' ? (
-      <ChevronUp className="h-4 w-4 inline ml-1" />
-    ) : (
-      <ChevronDown className="h-4 w-4 inline ml-1" />
-    );
-  };
-
-  const formatMetric = (value: number | null, decimals: number = 2) => {
-    if (value === null || value === undefined) return '—';
-    return value.toFixed(decimals);
-  };
+export default async function Page({ searchParams }: Props) {
+  const page = parsePage((await searchParams).page);
+  const data = await getTopJournalsPage(page, PER_PAGE);
+  if (data.totalPages > 0 && page > data.totalPages) notFound();
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-      {/* Back link */}
-      <Link
-        href="/"
-        className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 mb-4"
-      >
-        <ArrowLeft className="h-4 w-4 mr-1" />
-        Back to search
-      </Link>
+    <>
+      <JsonLd
+        data={breadcrumbLd([
+          ["Journals", "/journals"],
+          ["Top journals", "/journals/top"],
+        ])}
+      />
 
-      <Card>
-        <CardHeader className="pb-4">
-          <CardTitle className="text-2xl">Journal Rankings</CardTitle>
-          <p className="text-sm text-gray-500 mt-1">
-            Ranked by impact metrics computed from OpenAlex citation data
-            {data?.metricsYear && ` (${data.metricsYear})`}
-          </p>
-        </CardHeader>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+        <h1 className="text-3xl font-bold mb-2">{TITLE}</h1>
+        <p className="text-gray-500 mb-2">
+          {formatNumber(data.total)} journals ranked by 2-year impact factor
+          {data.metricsYear ? ` for ${data.metricsYear}` : ""}, with CiteScore,
+          total papers and citation counts.
+        </p>
+      </div>
 
-        <CardContent>
-          {/* Filters */}
-          <div className="flex flex-wrap gap-4 mb-6">
-            <div>
-              <label htmlFor="field-filter" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Field
-              </label>
-              <select
-                id="field-filter"
-                value={selectedField}
-                onChange={handleFieldChange}
-                className="block w-48 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
-              >
-                <option value="">All Fields</option>
-                {data?.fields.map((f) => (
-                  <option key={f} value={f}>{f}</option>
-                ))}
-              </select>
-            </div>
+      <PageClient initialData={data} page={page} />
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Sort by
-              </label>
-              <select
-                value={sortField}
-                onChange={(e) => {
-                  setSortField(e.target.value as SortField);
-                  setPage(1);
-                }}
-                className="block w-40 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
-              >
-                {Object.entries(SORT_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {loading && (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-              <span className="ml-3 text-gray-500">Loading journals...</span>
-            </div>
-          )}
-
-          {error && (
-            <div className="text-center py-12">
-              <p className="text-red-600 text-lg">{error}</p>
-            </div>
-          )}
-
-          {!loading && !error && data && (
-            <>
-              {/* Results count */}
-              <p className="text-sm text-gray-500 mb-4">
-                Showing {((page - 1) * 50) + 1}–{Math.min(page * 50, data.total)} of {formatNumber(data.total)} journals
-                {selectedField && ` in ${selectedField}`}
-              </p>
-
-              {/* Table */}
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className="bg-gray-50 dark:bg-gray-800">
-                    <tr>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-12">
-                        #
-                      </th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Journal
-                      </th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hidden md:table-cell">
-                        Field
-                      </th>
-                      <th
-                        className="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-700 dark:hover:text-gray-200"
-                        onClick={() => handleSort('impact_factor_2yr')}
-                      >
-                        2Y IF <SortIcon field="impact_factor_2yr" />
-                      </th>
-                      <th
-                        className="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 hidden sm:table-cell"
-                        onClick={() => handleSort('impact_factor_5yr')}
-                      >
-                        5Y IF <SortIcon field="impact_factor_5yr" />
-                      </th>
-                      <th
-                        className="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 hidden sm:table-cell"
-                        onClick={() => handleSort('citescore')}
-                      >
-                        CiteScore <SortIcon field="citescore" />
-                      </th>
-                      <th
-                        className="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 hidden lg:table-cell"
-                        onClick={() => handleSort('total_papers')}
-                      >
-                        Papers <SortIcon field="total_papers" />
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                    {data.journals.map((journal, idx) => (
-                      <tr key={journal.sourceid} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                        <td className="px-3 py-3 text-sm text-gray-500 dark:text-gray-400">
-                          {(page - 1) * 50 + idx + 1}
-                        </td>
-                        <td className="px-3 py-3">
-                          <Link
-                            href={`/journals/${journal.sourceid}`}
-                            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
-                          >
-                            {journal.display_name}
-                          </Link>
-                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                            {journal.publisher}
-                            {journal.is_oa && (
-                              <span className="ml-2 text-green-600 dark:text-green-400">OA</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-3 py-3 text-sm text-gray-500 dark:text-gray-400 hidden md:table-cell">
-                          {journal.primary_field_l0_name || '—'}
-                        </td>
-                        <td className="px-3 py-3 text-sm text-right font-mono">
-                          {formatMetric(journal.impact_factor_2yr)}
-                        </td>
-                        <td className="px-3 py-3 text-sm text-right font-mono hidden sm:table-cell">
-                          {formatMetric(journal.impact_factor_5yr)}
-                        </td>
-                        <td className="px-3 py-3 text-sm text-right font-mono hidden sm:table-cell">
-                          {formatMetric(journal.citescore)}
-                        </td>
-                        <td className="px-3 py-3 text-sm text-right font-mono hidden lg:table-cell">
-                          {formatNumber(journal.total_papers)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Pagination */}
-              {data.totalPages > 1 && (
-                <div className="flex items-center justify-between mt-6">
-                  <p className="text-sm text-gray-500">
-                    Page {page} of {formatNumber(data.totalPages)}
-                  </p>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setPage(Math.max(1, page - 1))}
-                      disabled={page === 1}
-                      className="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => setPage(Math.min(data.totalPages, page + 1))}
-                      disabled={page === data.totalPages}
-                      className="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+      {/* Real <a href="?page=N"> links, server-rendered: this is what makes the
+          whole ranking crawlable. The client table's own controls only handle
+          sorting and field filtering. */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
+        <Pagination
+          basePath="/journals/top"
+          page={page}
+          totalPages={Math.min(data.totalPages, MAX_INDEXED_PAGE)}
+        />
+      </div>
+    </>
   );
 }

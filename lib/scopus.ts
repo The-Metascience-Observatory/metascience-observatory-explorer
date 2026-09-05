@@ -41,9 +41,11 @@ export async function fetchScopusCiteScore(issn: string): Promise<ScopusSourceMe
       headers['X-ELS-Insttoken'] = SCOPUS_INST_TOKEN;
     }
 
+    // Hard timeout: this now runs during server rendering of journal pages, so
+    // an unresponsive Scopus API must not be able to hold a page open.
     const response = await fetch(
       `https://api.elsevier.com/content/serial/title/issn/${cleanIssn}?view=CITESCORE`,
-      { headers }
+      { headers, signal: AbortSignal.timeout(3000) }
     );
 
     if (!response.ok) {

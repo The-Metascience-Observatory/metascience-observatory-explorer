@@ -21,7 +21,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from openaire_common import stream_tar_jsonl
+from openaire_common import KeymapTranslator, stream_tar_jsonl
 
 BATCH = 20_000
 
@@ -37,30 +37,32 @@ CREATE TABLE paper_projects (
 """
 
 
-def translate_targets(out, targets):
-    """openaire product id -> app paper key (SciSciNet paperid or 'OA…' id)."""
-    result = {}
-    ids = list(targets)
-    for i in range(0, len(ids), 500):
-        chunk = ids[i : i + 500]
-        ph = ",".join("?" * len(chunk))
-        for oaid, paperid in out.execute(
-            f"SELECT openaire_id, paperid FROM paper_openaire WHERE openaire_id IN ({ph})", chunk
-        ):
-            result[oaid] = paperid
-        for oaid, appid in out.execute(
-            f"SELECT openaire_id, id FROM openaire_papers WHERE openaire_id IN ({ph})", chunk
-        ):
-            result.setdefault(oaid, appid)
-    return result
+def translate_targets(keymap, targets):
+    """openaire product id -> app paper key (SciSciNet paperid or 'OA…' id).
+
+    Keys on the md5 hex, NOT the full id string. `doi_dedup___::<hex>` (how the
+    relation dumps overwhelmingly reference products) and `doi_________::<hex>`
+    (how openaire_papers/paper_openaire mostly store them) are the same DOI, so
+    the previous full-string `openaire_id IN (...)` matching here silently
+    under-matched. See KeymapTranslator in openaire_common.py.
+    """
+    return keymap.translate(targets)
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--dump-dir", required=True)
     ap.add_argument("--db-path", required=True)
+    ap.add_argument(
+        "--keymap-dir",
+        required=True,
+        help="directory of map_lo/map_hi/map_val .npy built by openaire_build_keymap.py",
+    )
     ap.add_argument("--rebuild", action="store_true")
     args = ap.parse_args()
+
+    keymap = KeymapTranslator(Path(args.keymap_dir).expanduser())
+    print(f"loaded keymap: {len(keymap):,} md5 keys")
 
     out = sqlite3.connect(Path(args.db_path).expanduser())
     out.executescript("PRAGMA journal_mode=OFF; PRAGMA synchronous=OFF; PRAGMA cache_size=-2000000;")
@@ -88,7 +90,7 @@ def main():
 
     def process(batch):
         nonlocal kept, missing_project
-        translated = translate_targets(out, {t for _, t in batch})
+        translated = translate_targets(keymap, {t for _, t in batch})
         for proj_id, target in batch:
             paper_key = translated.get(target)
             if not paper_key:

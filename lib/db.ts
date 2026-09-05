@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import fs from "fs";
 import path from "path";
 
 let db: Database.Database | null = null;
@@ -9,6 +10,9 @@ let retractionsDb: Database.Database | null = null;
 let meshDb: Database.Database | null = null;
 let openaireDb: Database.Database | null = null;
 let openaireAbstractsDb: Database.Database | null = null;
+let openaireCitationsDb: Database.Database | null = null;
+let identityDb: Database.Database | null = null;
+let pubmedDb: Database.Database | null = null;
 
 export function getDb(): Database.Database {
   if (!db) {
@@ -191,6 +195,36 @@ export function getMeshDb(): Database.Database | null {
   return meshDb;
 }
 
+// Get PubMed database (publication types, grant links, databank accessions
+// from the MEDLINE annual baseline). Optional, like mesh/retractions.
+export function getPubmedDb(): Database.Database | null {
+  if (pubmedDb === null) {
+    try {
+      const dbPath = path.join(process.cwd(), "data", "pubmed.db");
+      pubmedDb = new Database(dbPath, { readonly: true, fileMustExist: true });
+    } catch {
+      // pubmed.db may not exist - return null
+      return null;
+    }
+  }
+  return pubmedDb;
+}
+
+// Get identity database (ORCID-derived career trajectories: employment,
+// education, mobility and career-age rollups). Optional, like mesh/retractions.
+export function getIdentityDb(): Database.Database | null {
+  if (identityDb === null) {
+    try {
+      const dbPath = path.join(process.cwd(), "data", "identity.db");
+      identityDb = new Database(dbPath, { readonly: true, fileMustExist: true });
+    } catch {
+      // identity.db may not exist - return null
+      return null;
+    }
+  }
+  return identityDb;
+}
+
 // Get OpenAIRE Graph database (projects/grants, OA status, linked products, orgs)
 export function getOpenaireDb(): Database.Database | null {
   if (openaireDb === null) {
@@ -219,16 +253,41 @@ export function getOpenaireAbstractsDb(): Database.Database | null {
   return openaireAbstractsDb;
 }
 
-// Helper to check if database exists and is accessible
-export function isDatabaseAvailable(): boolean {
-  try {
-    const dbPath = path.join(process.cwd(), "data", "journals.db");
-    const testDb = new Database(dbPath, { readonly: true });
-    testDb.close();
-    return true;
-  } catch {
-    return false;
+// Get OpenAIRE citation database (BiP! impact indicators + packed citation edges).
+//
+// Built by scripts/openaire_import_citation_counts.py and openaire_pack_citations.py.
+// Small enough (~3-13GB) to query on the main thread: every read is a single
+// INTEGER PRIMARY KEY or WITHOUT ROWID PK seek. Resolving the resulting neighbor
+// ids to titles is NOT - that must go through the worker pools (see
+// lib/openaire-citations.ts).
+export function getOpenaireCitationsDb(): Database.Database | null {
+  if (openaireCitationsDb === null) {
+    try {
+      const dbPath = path.join(process.cwd(), "data", "openaire_citations.db");
+      openaireCitationsDb = new Database(dbPath, { readonly: true, fileMustExist: true });
+    } catch {
+      // openaire_citations.db may not exist - return null.
+      // Note this retries the open on every call while the file is absent, which
+      // is what lets the DB go live without a server restart once it's dropped in.
+      return null;
+    }
   }
+  return openaireCitationsDb;
+}
+
+// Helper to check if database exists and is accessible.
+//
+// Memoized: this is called by every detail API route on every request, and it
+// used to open and close a fresh Database handle each time. Under SSR that
+// lands on the render path. The database file is mounted for the life of the
+// process, so one check is enough.
+let databaseAvailable: boolean | null = null;
+
+export function isDatabaseAvailable(): boolean {
+  if (databaseAvailable === null) {
+    databaseAvailable = fs.existsSync(path.join(process.cwd(), "data", "journals.db"));
+  }
+  return databaseAvailable;
 }
 
 // Helper to detect SQLite busy errors (database locked)

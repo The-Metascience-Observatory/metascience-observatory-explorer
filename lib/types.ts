@@ -355,7 +355,7 @@ export interface PaperSearchItem {
   title: string;
   doi: string | null;
   year: number | null;
-  cited_by_count: number | null; // null for OpenAIRE-sourced results
+  cited_by_count: number | null; // OpenAlex for SciSciNet papers, BIP! for OpenAIRE ones
   source_name: string | null;
   openaire?: boolean; // true when the paper comes from the OpenAIRE Graph
 }
@@ -717,4 +717,109 @@ export interface OpenairePaperDetails {
   summary: OpenairePaperSummary;
   authors: OpenairePaperAuthor[];
   journalDisplayName: string | null;
+  impact: OpenaireImpactIndicators | null;
+}
+
+// ── BIP! impact indicators (openaire_paper_impact in data/openaire_citations.db) ─
+//
+// Produced by the BIP! team (ATHENA Research Center) and redistributed inside the
+// OpenAIRE Graph dumps under CC-BY.
+
+/** BIP! percentile band. C1 is the top tier, C5 the bottom. */
+export type BipClass = "C1" | "C2" | "C3" | "C4" | "C5";
+
+export interface OpenaireImpactIndicators {
+  citationCount: number | null;
+  influence: number | null; // long-term impact (PageRank-family)
+  popularity: number | null; // current attention (time-aware ranking)
+  impulse: number | null; // early citation velocity
+  citationClass: BipClass | null;
+  influenceClass: BipClass | null;
+  popularityClass: BipClass | null;
+  impulseClass: BipClass | null;
+}
+
+/**
+ * One row in a References / Cited By list, as rendered by PaperListCard.
+ * Deliberately a structural superset of `OpenaireRelatedPaper` so OpenAIRE edge
+ * results can be passed straight through without mapping.
+ */
+export interface PaperItem {
+  paperid: string;
+  title: string | null;
+  year: number | null;
+  cited_by_count: number | null;
+  /** OpenAIRE-only paper: different route, and its count comes from BIP!. */
+  openaire?: boolean;
+  /** Edge exists but the neighbor couldn't be named — render without a link. */
+  unresolved?: boolean;
+}
+
+// ── OpenAIRE citation edges (openaire_refs / openaire_cites) ──────────────────
+
+/**
+ * One end of an OpenAIRE citation edge, resolved for display.
+ * `paperid` is an app key: 'OA…' (OpenAIRE-only) or 'W…' (SciSciNet).
+ * A null title means the edge exists but the neighbor could not be resolved.
+ */
+export interface OpenaireRelatedPaper {
+  paperid: string;
+  title: string | null;
+  year: number | null;
+  cited_by_count: number | null;
+  openaire: boolean;
+  /** Edge exists but the neighbor couldn't be named — render without a link. */
+  unresolved?: boolean;
+}
+
+interface OpenaireRelatedPapersBase {
+  total: number; // true edge count, may exceed the stored/returned list
+  offset: number;
+  limit: number;
+  hasMore: boolean;
+  truncated: boolean; // true when total exceeds the build-time cap
+  unavailable?: boolean; // true when openaire_citations.db isn't deployed
+}
+
+export interface OpenaireCitationsResponse extends OpenaireRelatedPapersBase {
+  citations: OpenaireRelatedPaper[];
+  /** Only present when derivable exactly (total <= cap); never approximated. */
+  citationHistory?: PaperCitationHistory[];
+}
+
+export interface OpenaireReferencesResponse extends OpenaireRelatedPapersBase {
+  references: OpenaireRelatedPaper[];
+}
+
+// ---------------------------------------------------------------------------
+// ORCID-derived career data (identity.db). Self-reported and partial: ~2M of
+// 100.4M authors. Any UI built on this must show that, not imply full coverage.
+// ---------------------------------------------------------------------------
+
+export interface AuthorAffiliationRecord {
+  orgName: string | null;
+  ror: string | null;
+  country: string | null;
+  roleTitle: string | null;
+  startYear: number | null;
+  endYear: number | null;
+}
+
+export interface AuthorEducationRecord extends AuthorAffiliationRecord {
+  isDoctorate: boolean;
+}
+
+export interface AuthorIdentity {
+  orcid: string;
+  phdYear: number | null;
+  firstEmploymentYear: number | null;
+  nEmployments: number;
+  nOrgs: number;
+  nCountries: number;
+}
+
+export interface AuthorCareer {
+  identity: AuthorIdentity | null;
+  employment: AuthorAffiliationRecord[];
+  education: AuthorEducationRecord[];
 }

@@ -238,3 +238,94 @@ export async function openaireWorkerQueryOne<T>(
   if (!p) return undefined;
   return p.queryOne<T>(sql, ...params);
 }
+
+// ── Dedicated pools for the other large, optional databases ──────────────────
+// Server components render these on the request path, so their reads must not
+// run on the main thread: mesh.db is 32GB, papers_extra.db 20GB and
+// abstracts.db 185GB, and a cold read is disk-seek bound. Two workers each is
+// enough — these back a single section of a detail page, not a search.
+//
+// Each is optional. A missing file caches the failure and callers degrade to
+// an empty result, matching the getAbstractsDb()/getMeshDb() contract.
+
+interface OptionalPool {
+  get(): DatabaseWorkerPool | null;
+}
+
+function makeOptionalPool(fileName: string): OptionalPool {
+  let instance: DatabaseWorkerPool | null = null;
+  let unavailable = false;
+
+  return {
+    get() {
+      if (unavailable) return null;
+      if (!instance) {
+        const dbPath = path.join(process.cwd(), 'data', fileName);
+        if (!fs.existsSync(dbPath)) {
+          unavailable = true;
+          return null;
+        }
+        instance = new DatabaseWorkerPool(2, {
+          dbPath,
+          cacheSize: -262144,  // 256MB per worker
+          mmapSize: 2147483648 // 2GB mmap
+        });
+      }
+      return instance;
+    },
+  };
+}
+
+const meshPool = makeOptionalPool('mesh.db');
+const extraPool = makeOptionalPool('papers_extra.db');
+const abstractsPool = makeOptionalPool('abstracts.db');
+const identityPool = makeOptionalPool('identity.db');
+const pubmedPool = makeOptionalPool('pubmed.db');
+
+async function optionalQuery<T>(
+  p: OptionalPool,
+  sql: string,
+  params: unknown[]
+): Promise<T[]> {
+  const instance = p.get();
+  if (!instance) return [];
+  return instance.query<T>(sql, ...params);
+}
+
+async function optionalQueryOne<T>(
+  p: OptionalPool,
+  sql: string,
+  params: unknown[]
+): Promise<T | undefined> {
+  const instance = p.get();
+  if (!instance) return undefined;
+  return instance.queryOne<T>(sql, ...params);
+}
+
+export const meshWorkerQuery = <T>(sql: string, ...params: unknown[]) =>
+  optionalQuery<T>(meshPool, sql, params);
+export const meshWorkerQueryOne = <T>(sql: string, ...params: unknown[]) =>
+  optionalQueryOne<T>(meshPool, sql, params);
+
+export const extraWorkerQuery = <T>(sql: string, ...params: unknown[]) =>
+  optionalQuery<T>(extraPool, sql, params);
+export const extraWorkerQueryOne = <T>(sql: string, ...params: unknown[]) =>
+  optionalQueryOne<T>(extraPool, sql, params);
+
+export const abstractsWorkerQueryOne = <T>(sql: string, ...params: unknown[]) =>
+  optionalQueryOne<T>(abstractsPool, sql, params);
+
+// identity.db backs both per-author career panels and the Trends rollups. The
+// rollup tables are small, but a mobility drill-down can scan mobility_flows, so
+// it stays off the main thread like the other optional DBs.
+export const identityWorkerQuery = <T>(sql: string, ...params: unknown[]) =>
+  optionalQuery<T>(identityPool, sql, params);
+export const identityWorkerQueryOne = <T>(sql: string, ...params: unknown[]) =>
+  optionalQueryOne<T>(identityPool, sql, params);
+
+// pubmed.db backs study-design badges on paper pages and the design-trend rollup.
+// paper_pubtypes is ~62M rows, so this stays off the main thread like the others.
+export const pubmedWorkerQuery = <T>(sql: string, ...params: unknown[]) =>
+  optionalQuery<T>(pubmedPool, sql, params);
+export const pubmedWorkerQueryOne = <T>(sql: string, ...params: unknown[]) =>
+  optionalQueryOne<T>(pubmedPool, sql, params);

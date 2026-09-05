@@ -13,6 +13,15 @@ services:
       - ./data:/app/data
     environment:
       - NODE_ENV=production
+      # Public origin, used for metadataBase, canonicals and sitemap URLs.
+      - SITE_URL=https://explore.metascienceobservatory.org
+    # middleware.ts logs every request. Without rotation a large crawl can fill
+    # the disk holding the databases.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     # Resource limits to prevent DoS
     deploy:
       resources:

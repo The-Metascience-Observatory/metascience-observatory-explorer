@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { searchCaches, generateCacheKey } from "@/lib/search-cache";
 import { workerQuery, openaireWorkerQuery, getOpenaireWorkerPool } from "@/lib/worker-pool";
+import { getOpenaireCitationsDb } from "@/lib/db";
 
 /**
  * Cache warming endpoint - preloads common searches into memory
@@ -76,6 +77,27 @@ async function warmOpenairePapers(
       setTimeout(() => resolve({ rows: null }), OPENAIRE_WARM_TIMEOUT_MS)
     ),
   ]).catch(() => ({ rows: null }));
+
+  // Touch the BIP! impact table for these hits too. The search route does the
+  // same lookup per query, and a cold openaire_citations.db can otherwise trip
+  // its 2s race on the first few requests after a deploy.
+  if (raced.rows?.length) {
+    try {
+      const cdb = getOpenaireCitationsDb();
+      const ids = raced.rows
+        .map((r) => r.paperid)
+        .filter((v): v is string => typeof v === "string");
+      if (cdb && ids.length) {
+        cdb
+          .prepare(
+            `SELECT id FROM openaire_paper_impact WHERE id IN (${ids.map(() => "?").join(",")})`
+          )
+          .all(...ids);
+      }
+    } catch {
+      // impact table is optional
+    }
+  }
 
   return raced.rows;
 }

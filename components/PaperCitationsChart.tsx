@@ -33,10 +33,12 @@ export function PaperCitationsChart({ data, viewMode }: PaperCitationsChartProps
     );
   }
 
-  // Fill in missing years with zeros, extending to 2024
+  // Fill in missing years with zeros, extending to at least 2024.
+  // Must not clamp to 2024: OpenAIRE-sourced histories carry 2025-26 citing
+  // years, and a hardcoded ceiling would silently drop those bars.
   const dataMap = new Map(data.map(d => [d.year, d.citation_count]));
   const minYear = Math.min(...data.map(d => d.year));
-  const maxYear = 2024; // Always extend to 2024
+  const maxYear = Math.max(2024, ...data.map(d => d.year));
 
   const filledData: { year: number; citations: number }[] = [];
   for (let year = minYear; year <= maxYear; year++) {

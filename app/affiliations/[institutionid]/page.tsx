@@ -1,21 +1,26 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import type { Metadata } from "next";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { AffiliationDetails, OpenaireOrgInfo } from "@/lib/types";
-import { formatNumber } from "@/lib/utils";
+import { notFound } from "next/navigation";
 import {
   ArrowLeft,
-  ExternalLink,
-  Loader2,
-  Users,
-  Handshake,
   Building2,
-  ChevronDown,
-  Landmark,
+  ExternalLink,
+  Handshake,
+  Users,
 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { JsonLd } from "@/components/JsonLd";
+import {
+  getAffiliationDetails,
+  getAffiliationSummary,
+} from "@/lib/queries/affiliations";
+import { breadcrumbLd, institutionSchemaType, organizationLd } from "@/lib/jsonld";
+import { formatNumber, getCountryName } from "@/lib/utils";
+import { ResearcherList } from "./parts/ResearcherList";
+import { OpenaireProjects } from "./parts/OpenaireProjects";
+
+/** ~110k institutions — bounded and fully indexable, so cache rather than force dynamic. */
+export const revalidate = 86400;
 
 const typeColors: Record<string, string> = {
   education: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
@@ -28,104 +33,84 @@ const typeColors: Record<string, string> = {
   other: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
 };
 
-export default function AffiliationDetailPage() {
-  const params = useParams();
-  const institutionid = params.institutionid as string;
+type Props = { params: Promise<{ institutionid: string }> };
 
-  const [data, setData] = useState<AffiliationDetails | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showAllResearchers, setShowAllResearchers] = useState(false);
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { institutionid } = await params;
+  const summary = await getAffiliationSummary(institutionid);
 
-  // OpenAIRE org enrichment (project portfolio via funder-declared participation)
-  const [openaireOrg, setOpenaireOrg] = useState<OpenaireOrgInfo | null>(null);
-
-  useEffect(() => {
-    async function fetchOpenaireOrg() {
-      try {
-        const res = await fetch(`/api/affiliations/${institutionid}/openaire`);
-        if (res.ok) {
-          const json = await res.json();
-          setOpenaireOrg(json.org);
-        }
-      } catch (e) {
-        console.error("Failed to fetch OpenAIRE org data:", e);
-      }
-    }
-    fetchOpenaireOrg();
-  }, [institutionid]);
-
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const res = await fetch(`/api/affiliations/${institutionid}`);
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || `HTTP ${res.status}`);
-        }
-        const json = await res.json();
-        setData(json);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Failed to load affiliation");
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchData();
-  }, [institutionid]);
-
-  if (loading) {
-    return (
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <div className="flex items-center justify-center py-24">
-          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-          <span className="ml-3 text-gray-500">Loading institution details...</span>
-        </div>
-      </div>
-    );
+  if (!summary) {
+    return { title: "Institution not found", robots: { index: false, follow: false } };
   }
 
-  if (error || !data) {
-    return (
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <Link
-          href="/"
-          className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 mb-4"
-        >
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          Back to search
-        </Link>
-        <div className="text-center py-24">
-          <p className="text-red-600 text-lg">{error || "Institution not found"}</p>
-          <p className="text-gray-500 mt-2">
-            Make sure the preprocessing script has been run with affiliation data.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  const country = summary.country_code ? getCountryName(summary.country_code) : null;
+  const title = `${summary.display_name} — Research Output, Citations & Researchers`;
+  const description =
+    `${summary.display_name}${country ? ` (${country})` : ""}` +
+    `${summary.type ? `, ${summary.type}` : ""}: ` +
+    `${formatNumber(summary.productivity)} publications, ` +
+    `${formatNumber(summary.total_citations)} citations, h-index ${summary.h_index ?? "n/a"}, ` +
+    `${formatNumber(summary.researcher_count)} researchers indexed` +
+    `${summary.first_year && summary.last_year ? `, ${summary.first_year}–${summary.last_year}` : ""}. ` +
+    "Top researchers, collaborating institutions and funded projects.";
+  const canonical = `/affiliations/${summary.institution_id}`;
 
-  const { summary, topResearchers, topCollaborators, childInstitutions, parentInstitution } = data;
-  const typeColor = summary.type ? typeColors[summary.type] || typeColors.other : typeColors.other;
+  return {
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: { title, description, url: canonical },
+  };
+}
+
+export default async function AffiliationDetailPage({ params }: Props) {
+  const { institutionid } = await params;
+  const data = await getAffiliationDetails(institutionid);
+  if (!data) notFound();
+
+  const {
+    summary,
+    topResearchers,
+    topCollaborators,
+    childInstitutions,
+    parentInstitution,
+  } = data;
+  const typeColor = summary.type
+    ? typeColors[summary.type] || typeColors.other
+    : typeColors.other;
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-      {/* Back link */}
+      <JsonLd
+        data={[
+          organizationLd({
+            id: summary.institution_id,
+            path: `/affiliations/${summary.institution_id}`,
+            name: summary.display_name,
+            type: institutionSchemaType(summary.type),
+            countryCode: summary.country_code,
+            homepageUrl: summary.homepage_url,
+            ror: summary.ror,
+          }),
+          breadcrumbLd([
+            ["Institutions", "/affiliations"],
+            [summary.display_name, `/affiliations/${summary.institution_id}`],
+          ]),
+        ]}
+      />
+
       <Link
-        href="/"
+        href="/affiliations"
         className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 mb-4"
       >
         <ArrowLeft className="h-4 w-4 mr-1" />
-        Back to search
+        All institutions
       </Link>
 
-      {/* Infobox */}
       <Card className="mb-8 max-w-md">
         <CardContent className="pt-6">
-          {/* Name */}
           <h1 className="text-xl font-bold mb-2 text-center">{summary.display_name}</h1>
 
-          {/* Type badge */}
           {summary.type && (
             <div className="flex justify-center mb-2">
               <span className={`px-3 py-1 text-sm rounded-full ${typeColor}`}>
@@ -134,14 +119,12 @@ export default function AffiliationDetailPage() {
             </div>
           )}
 
-          {/* Country */}
           {summary.country_code && (
             <p className="text-sm text-gray-500 text-center mb-2">
-              {summary.country_code}
+              {getCountryName(summary.country_code)}
             </p>
           )}
 
-          {/* Parent Institution */}
           {parentInstitution && parentInstitution.display_name && (
             <p className="text-sm text-gray-500 text-center mb-2">
               Part of{" "}
@@ -156,7 +139,6 @@ export default function AffiliationDetailPage() {
 
           <p className="text-xs text-gray-400 mb-4 text-center">Data up to Jan 2025</p>
 
-          {/* Key stats */}
           <div className="space-y-3 mb-6">
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-500">Publications</span>
@@ -184,7 +166,6 @@ export default function AffiliationDetailPage() {
             </div>
           </div>
 
-          {/* External Links */}
           {(summary.ror || summary.homepage_url) && (
             <div className="border-t pt-4">
               <div className="flex flex-col gap-2">
@@ -216,7 +197,6 @@ export default function AffiliationDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Top Researchers */}
       {topResearchers.length > 0 && (
         <Card className="mb-8">
           <CardHeader>
@@ -226,41 +206,11 @@ export default function AffiliationDetailPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {(showAllResearchers ? topResearchers : topResearchers.slice(0, 10)).map((researcher, idx) => (
-                <Link
-                  key={`${researcher.authorid}-${idx}`}
-                  href={`/persons/${researcher.authorid}`}
-                  className="block"
-                >
-                  <div className="flex items-start justify-between gap-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                    <div>
-                      <div className="font-medium">
-                        {researcher.display_name || "Unknown Researcher"}
-                      </div>
-                    </div>
-                    <div className="text-right text-sm">
-                      <div className="font-medium">h-index: {researcher.h_index || "—"}</div>
-                      <div className="text-gray-500">{formatNumber(researcher.paper_count)} papers</div>
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-            {topResearchers.length > 10 && !showAllResearchers && (
-              <button
-                onClick={() => setShowAllResearchers(true)}
-                className="mt-4 w-full flex items-center justify-center gap-2 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg transition-colors"
-              >
-                <ChevronDown className="h-4 w-4" />
-                Show {topResearchers.length - 10} more researchers
-              </button>
-            )}
+            <ResearcherList researchers={topResearchers} />
           </CardContent>
         </Card>
       )}
 
-      {/* Subinstitutions */}
       {childInstitutions && childInstitutions.length > 0 && (
         <Card className="mb-8">
           <CardHeader>
@@ -272,7 +222,9 @@ export default function AffiliationDetailPage() {
           <CardContent>
             <div className="space-y-3 max-h-[400px] overflow-y-auto">
               {childInstitutions.map((child, idx) => {
-                const childTypeColor = child.type ? typeColors[child.type] || typeColors.other : typeColors.other;
+                const childTypeColor = child.type
+                  ? typeColors[child.type] || typeColors.other
+                  : typeColors.other;
                 return (
                   <Link
                     key={`${child.institution_id}-${idx}`}
@@ -286,7 +238,7 @@ export default function AffiliationDetailPage() {
                         </div>
                         {child.country_code && (
                           <div className="text-sm text-gray-500">
-                            {child.country_code}
+                            {getCountryName(child.country_code)}
                           </div>
                         )}
                       </div>
@@ -304,9 +256,8 @@ export default function AffiliationDetailPage() {
         </Card>
       )}
 
-      {/* Top Collaborators */}
       {topCollaborators.length > 0 && (
-        <Card>
+        <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Handshake className="h-5 w-5" />
@@ -328,7 +279,7 @@ export default function AffiliationDetailPage() {
                       </div>
                       {collaborator.country_code && (
                         <div className="text-sm text-gray-500">
-                          {collaborator.country_code}
+                          {getCountryName(collaborator.country_code)}
                         </div>
                       )}
                     </div>
@@ -343,80 +294,7 @@ export default function AffiliationDetailPage() {
         </Card>
       )}
 
-      {/* Funded Projects (OpenAIRE) */}
-      {openaireOrg && openaireOrg.projects.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Landmark className="h-5 w-5" />
-              Funded Projects ({formatNumber(openaireOrg.projectCount)})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {openaireOrg.projects.map((project) => (
-                <div
-                  key={project.openaireProjectId}
-                  className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <div className="font-medium">
-                        {project.acronym || project.code || "Untitled project"}
-                        {project.funderShortname && (
-                          <span className="ml-2 px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                            {project.funderShortname}
-                          </span>
-                        )}
-                      </div>
-                      {project.title && (
-                        <div className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
-                          {project.title}
-                        </div>
-                      )}
-                      <div className="text-xs text-gray-500 mt-1">
-                        {[
-                          project.code,
-                          [project.startDate?.slice(0, 4), project.endDate?.slice(0, 4)]
-                            .filter(Boolean)
-                            .join("–"),
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-1 shrink-0">
-                      {project.fundedAmount ? (
-                        <span className="text-sm text-gray-600 dark:text-gray-400">
-                          {formatNumber(Math.round(project.fundedAmount))}{" "}
-                          {project.currency || ""}
-                        </span>
-                      ) : null}
-                      {project.funderShortname === "EC" && project.code && (
-                        <a
-                          href={`https://cordis.europa.eu/project/id/${project.code}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-800 inline-flex items-center gap-1 text-xs"
-                        >
-                          CORDIS <ExternalLink className="h-3 w-3" />
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            {openaireOrg.projectCount > openaireOrg.projects.length && (
-              <div className="text-xs text-gray-500 mt-3">
-                Showing top {openaireOrg.projects.length} of{" "}
-                {formatNumber(openaireOrg.projectCount)} projects by funded amount.
-              </div>
-            )}
-            <div className="text-xs text-gray-400 mt-2">Source: OpenAIRE Graph</div>
-          </CardContent>
-        </Card>
-      )}
+      <OpenaireProjects institutionId={summary.institution_id} />
     </div>
   );
 }

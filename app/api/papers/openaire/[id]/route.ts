@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb, getOpenaireDb } from "@/lib/db";
+import { getDb, getOpenaireDb, getOpenaireCitationsDb } from "@/lib/db";
 import { errorResponse } from "@/lib/api-utils";
-import type { OpenairePaperAuthor, OpenairePaperDetails } from "@/lib/types";
+import type {
+  BipClass,
+  OpenaireImpactIndicators,
+  OpenairePaperAuthor,
+  OpenairePaperDetails,
+} from "@/lib/types";
 
 const ID_RE = /^OA[0-9a-f]{32}$/;
 
@@ -42,6 +47,62 @@ interface AuthorRow {
 
 function toBool(v: number | null): boolean | null {
   return v === null ? null : Boolean(v);
+}
+
+interface ImpactRow {
+  citation_count: number;
+  citation_class: string | null;
+  influence: number | null;
+  influence_class: string | null;
+  popularity: number | null;
+  popularity_class: string | null;
+  impulse: number | null;
+  impulse_class: string | null;
+}
+
+/**
+ * BIP! impact indicators, from the optional openaire_citations.db.
+ * One WITHOUT ROWID PK probe on a small file, so main-thread is fine.
+ * Absence of a row means zero citations (only nonzero rows are stored).
+ */
+function loadImpact(id: string): OpenaireImpactIndicators | null {
+  const cdb = getOpenaireCitationsDb();
+  if (!cdb) return null;
+  let row: ImpactRow | undefined;
+  try {
+    row = cdb
+      .prepare(
+        `SELECT citation_count, citation_class, influence, influence_class,
+                popularity, popularity_class, impulse, impulse_class
+           FROM openaire_paper_impact WHERE id = ?`
+      )
+      .get(id) as ImpactRow | undefined;
+  } catch {
+    return null; // table not built yet
+  }
+  if (!row) {
+    return {
+      citationCount: 0,
+      influence: null,
+      popularity: null,
+      impulse: null,
+      citationClass: null,
+      influenceClass: null,
+      popularityClass: null,
+      impulseClass: null,
+    };
+  }
+  const cls = (v: string | null) => (v as BipClass | null) ?? null;
+  return {
+    citationCount: row.citation_count,
+    influence: row.influence,
+    popularity: row.popularity,
+    impulse: row.impulse,
+    citationClass: cls(row.citation_class),
+    influenceClass: cls(row.influence_class),
+    popularityClass: cls(row.popularity_class),
+    impulseClass: cls(row.impulse_class),
+  };
 }
 
 export async function GET(
@@ -125,6 +186,7 @@ export async function GET(
         })
       ),
       journalDisplayName,
+      impact: loadImpact(id),
     };
 
     return NextResponse.json(details);

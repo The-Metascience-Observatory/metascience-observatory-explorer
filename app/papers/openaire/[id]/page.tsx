@@ -1,16 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { OpenairePaperDetails, PaperOpenaireResponse } from "@/lib/types";
+import type {
+  OpenairePaperDetails,
+  OpenaireRelatedPaper,
+  PaperCitationHistory,
+  PaperOpenaireResponse,
+} from "@/lib/types";
 import {
   OpenAccessBadges,
   OpenaireFundingSection,
+  OpenaireImpactSection,
   OpenaireLinkedProductsSection,
 } from "@/components/OpenairePanels";
+import { PaperListCard } from "@/components/PaperListCard";
+import { PaperCitationsChart } from "@/components/PaperCitationsChart";
+import { formatNumber } from "@/lib/utils";
 import { ArrowLeft, ExternalLink, Loader2, Globe } from "lucide-react";
+
+// Matches EDGE_CAP in lib/openaire-citations.ts and --cap in the packer.
+const MAX_CITATIONS = 1000;
 
 export default function OpenairePaperPage() {
   const params = useParams();
@@ -21,6 +33,17 @@ export default function OpenairePaperPage() {
   const [error, setError] = useState<string | null>(null);
   const [abstract, setAbstract] = useState<string | null>(null);
   const [enrichment, setEnrichment] = useState<PaperOpenaireResponse | null>(null);
+
+  // Citation edges (optional openaire_citations.db; every surface fails soft)
+  const [references, setReferences] = useState<OpenaireRelatedPaper[]>([]);
+  const [referencesTotal, setReferencesTotal] = useState(0);
+  const [citations, setCitations] = useState<OpenaireRelatedPaper[]>([]);
+  const [citationsTotal, setCitationsTotal] = useState(0);
+  const [citationsLoading, setCitationsLoading] = useState(false);
+  const [hasMoreCitations, setHasMoreCitations] = useState(false);
+  const [citationHistory, setCitationHistory] = useState<PaperCitationHistory[]>([]);
+  const citationsContainerRef = useRef<HTMLDivElement>(null);
+  const citationsEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -71,6 +94,81 @@ export default function OpenairePaperPage() {
     fetchEnrichment();
   }, [id]);
 
+  // References (papers this one cites) from the OpenAIRE Cites relations
+  useEffect(() => {
+    async function fetchReferences() {
+      try {
+        const res = await fetch(`/api/papers/openaire/${id}/references`);
+        if (res.ok) {
+          const json = await res.json();
+          setReferences(json.references ?? []);
+          setReferencesTotal(json.total ?? 0);
+        }
+      } catch (e) {
+        console.error("Failed to fetch references:", e);
+      }
+    }
+    fetchReferences();
+  }, [id]);
+
+  // Citations (papers citing this one), plus an exact year histogram when available
+  useEffect(() => {
+    async function fetchCitations() {
+      try {
+        const res = await fetch(`/api/papers/openaire/${id}/citations`);
+        if (res.ok) {
+          const json = await res.json();
+          setCitations(json.citations ?? []);
+          setCitationsTotal(json.total ?? 0);
+          setHasMoreCitations(Boolean(json.hasMore));
+          setCitationHistory(json.citationHistory ?? []);
+        }
+      } catch (e) {
+        console.error("Failed to fetch citations:", e);
+      }
+    }
+    fetchCitations();
+  }, [id]);
+
+  const loadMoreCitations = useCallback(async () => {
+    if (citationsLoading || !hasMoreCitations) return;
+    setCitationsLoading(true);
+    try {
+      const offset = citations.length;
+      const remaining = Math.min(MAX_CITATIONS, citationsTotal) - offset;
+      if (remaining <= 0) {
+        setHasMoreCitations(false);
+        return;
+      }
+      const res = await fetch(
+        `/api/papers/openaire/${id}/citations?offset=${offset}&limit=${Math.min(100, remaining)}`
+      );
+      if (res.ok) {
+        const json = await res.json();
+        setCitations((prev) => [...prev, ...json.citations]);
+        setHasMoreCitations(json.hasMore && offset + json.citations.length < MAX_CITATIONS);
+      }
+    } catch (e) {
+      console.error("Failed to load more citations:", e);
+    } finally {
+      setCitationsLoading(false);
+    }
+  }, [id, citations.length, citationsLoading, hasMoreCitations, citationsTotal]);
+
+  useEffect(() => {
+    if (!citationsEndRef.current) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMoreCitations && !citationsLoading) {
+          loadMoreCitations();
+        }
+      },
+      { threshold: 0.1, root: citationsContainerRef.current }
+    );
+    observer.observe(citationsEndRef.current);
+    return () => observer.disconnect();
+  }, [hasMoreCitations, citationsLoading, loadMoreCitations]);
+
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex justify-center">
@@ -94,11 +192,11 @@ export default function OpenairePaperPage() {
     );
   }
 
-  const { summary, authors, journalDisplayName } = data;
+  const { summary, authors, journalDisplayName, impact } = data;
   const pages = [summary.startPage, summary.endPage].filter(Boolean).join("–");
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-4">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-4">
       <Link href="/papers" className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline">
         <ArrowLeft className="h-4 w-4" /> Back to papers
       </Link>
@@ -116,7 +214,17 @@ export default function OpenairePaperPage() {
           >
             OpenAIRE Graph
           </a>{" "}
-          (CC-BY) and is not part of the SciSciNet core dataset.
+          (CC-BY) and is not part of the SciSciNet core dataset. Citation counts
+          and impact indicators are from{" "}
+          <a
+            href="https://bip.imsi.athenarc.gr/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline"
+          >
+            BIP!
+          </a>
+          .
         </span>
       </div>
 
@@ -231,6 +339,17 @@ export default function OpenairePaperPage() {
                 <div className="font-semibold uppercase">{summary.language}</div>
               </div>
             )}
+            {impact && impact.citationCount !== null && (
+              <div>
+                <div className="text-gray-500">Citations</div>
+                <div
+                  className="font-semibold"
+                  title="Citation count from BIP! indicators (OpenAIRE Graph)"
+                >
+                  {formatNumber(impact.citationCount)}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* External links */}
@@ -255,6 +374,9 @@ export default function OpenairePaperPage() {
             )}
           </div>
 
+          {/* BIP! impact indicators */}
+          <OpenaireImpactSection impact={impact} />
+
           {/* Funding + linked products */}
           {enrichment && <OpenaireFundingSection projects={enrichment.projects} />}
           {enrichment && (
@@ -273,6 +395,47 @@ export default function OpenairePaperPage() {
             <p className="text-sm leading-relaxed whitespace-pre-line">{abstract}</p>
           </CardContent>
         </Card>
+      )}
+
+      {/* Citations over time. Only rendered when derivable exactly from the full
+          citing list -- the API omits it otherwise rather than chart a biased sample. */}
+      {citationHistory.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Citations Over Time</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PaperCitationsChart data={citationHistory} viewMode="yearly" />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* References + Cited By. Lists mix OpenAIRE and SciSciNet papers; each
+          item carries an `openaire` flag so it links to the right route. */}
+      {(references.length > 0 || citations.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <PaperListCard
+            type="references"
+            papers={references}
+            totalCount={referencesTotal}
+            emptyMessage="No references found in the OpenAIRE Graph"
+          />
+          <PaperListCard
+            type="citations"
+            papers={citations}
+            totalCount={citationsTotal}
+            isLoading={citationsLoading}
+            hasMore={hasMoreCitations}
+            containerRef={citationsContainerRef}
+            sentinelRef={citationsEndRef}
+            emptyMessage="No citing papers found in the OpenAIRE Graph"
+            maxNote={
+              citations.length >= MAX_CITATIONS
+                ? `Showing the ${formatNumber(MAX_CITATIONS)} most-cited of ${formatNumber(citationsTotal)} citing papers`
+                : undefined
+            }
+          />
+        </div>
       )}
     </div>
   );

@@ -37,6 +37,12 @@ const nextConfig: NextConfig = {
   outputFileTracingExcludes: {
     '*': ['./data/**/*'],
   },
+  // lib/db-worker.js is loaded at runtime via path.join(process.cwd(), ...) and
+  // is never statically imported, so Next's file tracer cannot see it. Without
+  // this the worker pool breaks in a standalone build.
+  outputFileTracingIncludes: {
+    '*': ['./lib/db-worker.js'],
+  },
   images: {
     remotePatterns: [
       {
@@ -57,6 +63,17 @@ const nextConfig: NextConfig = {
         source: '/:path*',
         headers: securityHeaders,
       },
+      // Keep these out of the index with a header rather than a robots.txt
+      // Disallow: a disallowed URL can still be indexed from an external link,
+      // because the crawler never fetches it to discover the noindex.
+      {
+        source: '/analytics',
+        headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }],
+      },
+      {
+        source: '/api/:path*',
+        headers: [{ key: 'X-Robots-Tag', value: 'noindex' }],
+      },
     ];
   },
 };
@@ -65,6 +82,11 @@ const nextConfig: NextConfig = {
 // from disk (the Edge runtime has no filesystem access). Next 15.5 honours this
 // flag at runtime but hasn't added it to ExperimentalConfig yet, hence the cast
 // and the "Unrecognized key" warning at build time.
-nextConfig.experimental = { nodeMiddleware: true } as NextConfig["experimental"];
+nextConfig.experimental = {
+  nodeMiddleware: true,
+  // lucide-react alone is imported in 42 files; barrel-optimising these keeps
+  // unused icons and chart primitives out of the client bundles.
+  optimizePackageImports: ["lucide-react", "recharts", "d3"],
+} as NextConfig["experimental"];
 
 export default nextConfig;

@@ -1,9 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, validateQueryLength, parsePagination } from "@/lib/api-utils";
 import { ENTITY_COUNTS } from "@/lib/counts";
+import { getOpenaireCitationsDb } from "@/lib/db";
 import type { PaperSearchItem } from "@/lib/types";
 import { searchCaches, generateCacheKey } from "@/lib/search-cache";
 import { workerQuery, openaireWorkerQuery } from "@/lib/worker-pool";
+
+/**
+ * Fill in BIP! citation counts for OpenAIRE search hits.
+ *
+ * The impact table lives in openaire_citations.db, which the openaire worker
+ * pool doesn't open, so this is a separate batched lookup rather than a JOIN.
+ * It's <=25 WITHOUT ROWID PK probes against a small file on the main thread —
+ * noise next to an FTS scan over 33M titles. Missing rows mean zero citations
+ * (only nonzero rows are stored); a missing DB leaves the counts null.
+ */
+function withOpenaireCitationCounts(items: PaperSearchItem[]): PaperSearchItem[] {
+  if (items.length === 0) return items;
+  const cdb = getOpenaireCitationsDb();
+  if (!cdb) return items;
+  try {
+    const ids = items.map((r) => r.paperid);
+    const rows = cdb
+      .prepare(
+        `SELECT id, citation_count FROM openaire_paper_impact
+          WHERE id IN (${ids.map(() => "?").join(",")})`
+      )
+      .all(...ids) as { id: string; citation_count: number }[];
+    const counts = new Map(rows.map((r) => [r.id, r.citation_count]));
+    return items.map((r) => ({ ...r, cited_by_count: counts.get(r.paperid) ?? 0 }));
+  } catch {
+    return items; // impact table not built yet
+  }
+}
 
 /**
  * Sanitize a word for FTS5 query.
@@ -111,7 +140,7 @@ export async function GET(request: NextRequest) {
                JOIN openaire_papers p ON p.rowid = f.rowid
                WHERE openaire_title_fts MATCH ?
                ORDER BY rank
-               LIMIT 10`,
+               LIMIT 25`,
               openaireFtsQuery
             ),
             new Promise<PaperSearchItem[]>((resolve) =>
@@ -132,9 +161,16 @@ export async function GET(request: NextRequest) {
       results.pop(); // Remove the extra result used for hasMore detection
     }
 
-    // Append OpenAIRE results after SciSciNet's (no citation counts to rank by)
+    // Attach BIP! citation counts, then keep the 10 most-cited of the 25
+    // relevance-ranked hits. Relevance-gated but impact-ranked: sorting in SQL
+    // instead would discard bm25 and force a scan of every FTS match.
+    // OpenAIRE results still go after SciSciNet's — interleaving would break the
+    // total/hasMore accounting below, which assumes SciSciNet-only paging.
     const combined = results.concat(
-      openaireResults.map((r) => ({ ...r, openaire: true }))
+      withOpenaireCitationCounts(openaireResults)
+        .sort((a, b) => (b.cited_by_count ?? -1) - (a.cited_by_count ?? -1))
+        .slice(0, 10)
+        .map((r) => ({ ...r, openaire: true }))
     );
 
     const response = {

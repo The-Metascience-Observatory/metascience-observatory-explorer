@@ -1,93 +1,93 @@
-"use client";
+import type { Metadata } from "next";
+import PageClient from "./PageClient";
+import { ENTITY_COUNTS, SEARCHABLE_PAPERS } from "@/lib/counts";
+import { SITE_NAME } from "@/lib/site";
 
-import { JournalSearch } from "@/components/JournalSearch";
-import { PersonSearch } from "@/components/PersonSearch";
-import { AffiliationSearch } from "@/components/AffiliationSearch";
-import { FunderSearch } from "@/components/FunderSearch";
-import { TrialSearch } from "@/components/TrialSearch";
-import { PaperSearch } from "@/components/PaperSearch";
-import { BookOpen, User, Building2, Banknote, FlaskConical, FileText } from "lucide-react";
-import Link from "next/link";
+const nf = new Intl.NumberFormat("en-US");
 
-export default function HomePage() {
+/** "283 million", "100 million" — for prose, where an exact count reads badly. */
+function millions(n: number): string {
+  return `${Math.round(n / 1_000_000)} million`;
+}
+
+const TITLE =
+  `The Metascience Observatory Explorer — ${Math.round(SEARCHABLE_PAPERS / 1e6)}M papers, ` +
+  `${Math.round(ENTITY_COUNTS.persons / 1e6)}M researchers, ${nf.format(ENTITY_COUNTS.journals)} journals`;
+const DESCRIPTION =
+  "Free, open explorer for the science of science. Browse and search " +
+  `${millions(SEARCHABLE_PAPERS)} papers, ${millions(ENTITY_COUNTS.persons)} researchers, ` +
+  `${nf.format(ENTITY_COUNTS.journals)} journals, ${nf.format(ENTITY_COUNTS.affiliations)} institutions, ` +
+  `${nf.format(ENTITY_COUNTS.funders)} funders and ${nf.format(ENTITY_COUNTS.trials)} clinical trials. ` +
+  "Built on SciSciNet-V2.";
+
+export const metadata: Metadata = {
+  title: { absolute: TITLE },
+  description: DESCRIPTION,
+  alternates: { canonical: "/" },
+  openGraph: { title: TITLE, description: DESCRIPTION, url: "/" },
+};
+
+/**
+ * JSON-LD so search engines can model this as a searchable dataset explorer
+ * rather than a generic page. Dataset in particular feeds Google Dataset Search.
+ */
+function structuredData() {
+  return [
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      name: SITE_NAME,
+      url: "/",
+      potentialAction: {
+        "@type": "SearchAction",
+        target: {
+          "@type": "EntryPoint",
+          urlTemplate: "/papers?q={search_term_string}",
+        },
+        "query-input": "required name=search_term_string",
+      },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "Dataset",
+      name: "SciSciNet-V2 explorer corpus",
+      description: DESCRIPTION,
+      url: "/",
+      keywords: [
+        "science of science",
+        "scientometrics",
+        "bibliometrics",
+        "metascience",
+        "citation analysis",
+        "research funding",
+      ],
+      license: "https://creativecommons.org/licenses/by/4.0/",
+      isAccessibleForFree: true,
+      creator: { "@type": "Organization", name: "The Metascience Observatory" },
+      citation:
+        "Lin, Z., Yin, Y., Liu, L. et al. SciSciNet: A large-scale open data lake " +
+        "for the science of science research. Sci Data 10, 315 (2023).",
+    },
+  ];
+}
+
+export default function Page() {
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(structuredData()).replace(/</g, "\\u003c"),
+        }}
+      />
 
-      {/* Five search sections - 2 rows */}
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-x-1 gap-y-1 mb-1">
-        {/* Journals */}
-        <div className="max-w-[78%] mx-auto w-full space-y-2">
-          <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-            <BookOpen className="h-5 w-5" />
-            <h2 className="text-lg font-semibold">Journals</h2>
-          </div>
-          <JournalSearch compact />
-        </div>
-
-        {/* Researchers */}
-        <div className="max-w-[78%] mx-auto w-full space-y-2">
-          <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-            <User className="h-5 w-5" />
-            <h2 className="text-lg font-semibold">Researchers</h2>
-          </div>
-          <PersonSearch compact />
-        </div>
-
-        {/* Institutions */}
-        <div className="max-w-[78%] mx-auto w-full space-y-2">
-          <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-            <Building2 className="h-5 w-5" />
-            <h2 className="text-lg font-semibold">Institutions</h2>
-          </div>
-          <AffiliationSearch compact />
-        </div>
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-2 text-center">
+        <h1 className="font-clarendon text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100">
+          Explore open source Scientometrics data, all in one place
+        </h1>
       </div>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-x-1 gap-y-1 mb-6">
-        {/* Papers */}
-        <div className="max-w-[78%] mx-auto w-full space-y-2">
-          <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-            <FileText className="h-5 w-5" />
-            <h2 className="text-lg font-semibold">Papers</h2>
-          </div>
-          <PaperSearch compact />
-        </div>
-
-        {/* Funders */}
-        <div className="max-w-[78%] mx-auto w-full space-y-2">
-          <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-            <Banknote className="h-5 w-5" />
-            <h2 className="text-lg font-semibold">Funders</h2>
-          </div>
-          <FunderSearch compact />
-        </div>
-
-        {/* Clinical Trials */}
-        <div className="max-w-[78%] mx-auto w-full space-y-2">
-          <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-            <FlaskConical className="h-5 w-5" />
-            <h2 className="text-lg font-semibold">Clinical Trials</h2>
-          </div>
-          <TrialSearch compact />
-        </div>
-      </div>
-
-      {/* About section */}
-      <div className="text-sm text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
-        <p className="mb-3">
-          The primary source of data for the Metascience Observatory Explorer is the 2025
-           <a href="https://northwestern-cssi.github.io/sciscinet/" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">
-            SciSciNet-V2 dataset
-          </a>
-          . If you find this explorer useful for your work, make sure to acknowledge and cite the{" "}
-          <a href="https://www.nature.com/articles/s41597-023-02198-9" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">
-            SciSciNet paper</a>.{" "}
-          <Link href="/about" className="text-blue-600 hover:underline">
-            Read more about data sources here.
-          </Link>
-        </p>
-      </div>
-
-    </div>
+      <PageClient />
+    </>
   );
 }
