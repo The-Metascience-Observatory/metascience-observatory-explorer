@@ -11,7 +11,42 @@ import { join } from "path";
 // IPv6) rather than BigInt, because the project targets ES2017.
 
 const BLOCKLIST_PATH = join(process.cwd(), "data", "blocklist.json");
+const ALLOWLIST_PATH = join(process.cwd(), "data", "allowlist.json");
 const RELOAD_CHECK_MS = 30 * 1000;
+
+/**
+ * User-Agent substrings that must never be blockable.
+ *
+ * getBlockReason() matches UA patterns as case-insensitive *substrings*, so a
+ * well-meaning entry like "bot" in data/blocklist.json would 403 Googlebot
+ * within 30 seconds, with no rebuild and no obvious cause. Any configured
+ * pattern that is a substring of one of these is rejected at load time.
+ */
+const PROTECTED_UA_TOKENS = [
+  "googlebot",
+  "google-inspectiontool",
+  "storebot-google",
+  "bingbot",
+  "adidxbot",
+  "applebot",
+  "duckduckbot",
+  "yandexbot",
+  "baiduspider",
+  "slurp",
+  "oai-searchbot",
+  "chatgpt-user",
+  "perplexitybot",
+  "claudebot",
+  "claude-searchbot",
+  "claude-user",
+  "facebookexternalhit",
+  "twitterbot",
+  "linkedinbot",
+  "ia_archiver",
+];
+
+/** Shortest UA pattern we will accept; below this, false positives dominate. */
+const MIN_UA_PATTERN_LENGTH = 5;
 
 export interface BlocklistFile {
   /** Exact IP matches, v4 or v6. */
@@ -20,6 +55,16 @@ export interface BlocklistFile {
   cidrs?: string[];
   /** Case-insensitive substrings matched against the User-Agent header. */
   userAgents?: string[];
+}
+
+/**
+ * Published crawler ranges, e.g. Google's googlebot.json / special-crawlers.json
+ * and Bing's bingbot.json. Used to confirm a crawler User-Agent actually comes
+ * from the network it claims, before granting it a higher rate limit.
+ */
+export interface AllowlistFile {
+  ips?: string[];
+  cidrs?: string[];
 }
 
 /** An address as octets: length 4 for IPv4, 16 for IPv6. */
@@ -40,10 +85,6 @@ interface CompiledBlocklist {
 }
 
 const EMPTY: CompiledBlocklist = { ips: new Set(), cidrs: [], userAgents: [] };
-
-let compiled: CompiledBlocklist = EMPTY;
-let lastMtimeMs = -1;
-let lastCheckedAt = 0;
 
 // --- address parsing -------------------------------------------------------
 
@@ -173,63 +214,120 @@ function inCidr(addr: Octets, cidr: ParsedCidr): boolean {
 
 // --- loading ---------------------------------------------------------------
 
-function compile(raw: BlocklistFile): CompiledBlocklist {
+function compileCidrs(entries: string[] | undefined, label: string): ParsedCidr[] {
   const cidrs: ParsedCidr[] = [];
-  for (const entry of raw.cidrs ?? []) {
+  for (const entry of entries ?? []) {
     const parsed = parseCidr(entry);
     if (parsed) {
       cidrs.push(parsed);
     } else {
-      console.error(`[blocklist] ignoring malformed CIDR: ${entry}`);
+      console.error(`[${label}] ignoring malformed CIDR: ${entry}`);
     }
   }
+  return cidrs;
+}
 
+/**
+ * Reject UA patterns that would collaterally block a crawler we depend on.
+ * Enforced here, at load time, so a bad entry never reaches request handling.
+ */
+function safeUserAgentPatterns(entries: string[] | undefined): string[] {
+  const out: string[] = [];
+  for (const raw of entries ?? []) {
+    const pattern = raw.toLowerCase().trim();
+    if (!pattern) continue;
+
+    if (pattern.length < MIN_UA_PATTERN_LENGTH) {
+      console.error(
+        `[blocklist] refusing UA pattern "${pattern}": shorter than ${MIN_UA_PATTERN_LENGTH} characters`
+      );
+      continue;
+    }
+
+    const clash = PROTECTED_UA_TOKENS.find((token) => token.includes(pattern));
+    if (clash) {
+      console.error(
+        `[blocklist] refusing UA pattern "${pattern}": it would also match "${clash}"`
+      );
+      continue;
+    }
+
+    out.push(pattern);
+  }
+  return out;
+}
+
+function compile(raw: BlocklistFile): CompiledBlocklist {
   return {
     ips: new Set((raw.ips ?? []).map((s) => s.trim()).filter(Boolean)),
-    cidrs,
-    userAgents: (raw.userAgents ?? []).map((s) => s.toLowerCase().trim()).filter(Boolean),
+    cidrs: compileCidrs(raw.cidrs, "blocklist"),
+    userAgents: safeUserAgentPatterns(raw.userAgents),
+  };
+}
+
+function compileAllowlist(raw: AllowlistFile): CompiledBlocklist {
+  return {
+    ips: new Set((raw.ips ?? []).map((s) => s.trim()).filter(Boolean)),
+    cidrs: compileCidrs(raw.cidrs, "allowlist"),
+    userAgents: [],
   };
 }
 
 /**
- * Return the current blocklist, reloading from disk if the file changed.
- * A missing file means "nothing blocked" and is not an error.
+ * Build a loader that returns a compiled list, re-reading from disk only when
+ * the file's mtime changes (checked at most once per RELOAD_CHECK_MS).
+ *
+ * A missing file means "empty list" and is not an error; a malformed one keeps
+ * the last good list rather than failing open.
  */
-function load(): CompiledBlocklist {
-  const now = Date.now();
-  if (now - lastCheckedAt < RELOAD_CHECK_MS) return compiled;
-  lastCheckedAt = now;
+function makeLoader<T>(
+  path: string,
+  label: string,
+  compileFn: (raw: T) => CompiledBlocklist
+): () => CompiledBlocklist {
+  let current: CompiledBlocklist = EMPTY;
+  let mtime = -1;
+  let checkedAt = 0;
 
-  try {
-    const mtimeMs = statSync(BLOCKLIST_PATH).mtimeMs;
-    if (mtimeMs === lastMtimeMs) return compiled;
+  return function load(): CompiledBlocklist {
+    const now = Date.now();
+    if (now - checkedAt < RELOAD_CHECK_MS) return current;
+    checkedAt = now;
 
-    const parsed = JSON.parse(readFileSync(BLOCKLIST_PATH, "utf8")) as BlocklistFile;
-    compiled = compile(parsed);
-    lastMtimeMs = mtimeMs;
-    console.log(
-      `[blocklist] loaded ${compiled.ips.size} IPs, ${compiled.cidrs.length} CIDRs, ` +
-        `${compiled.userAgents.length} UA patterns`
-    );
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code === "ENOENT") {
-      // No blocklist configured. Only reset if we had one loaded before.
-      if (compiled !== EMPTY) {
-        console.log("[blocklist] file removed, blocklist cleared");
-        compiled = EMPTY;
-        lastMtimeMs = -1;
+    try {
+      const mtimeMs = statSync(path).mtimeMs;
+      if (mtimeMs === mtime) return current;
+
+      current = compileFn(JSON.parse(readFileSync(path, "utf8")) as T);
+      mtime = mtimeMs;
+      console.log(
+        `[${label}] loaded ${current.ips.size} IPs, ${current.cidrs.length} CIDRs, ` +
+          `${current.userAgents.length} UA patterns`
+      );
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "ENOENT") {
+        if (current !== EMPTY) {
+          console.log(`[${label}] file removed, list cleared`);
+          current = EMPTY;
+          mtime = -1;
+        }
+      } else {
+        console.error(`[${label}] failed to load, keeping previous list:`, error);
+        mtime = -1;
       }
-    } else {
-      // Malformed JSON or unreadable file: keep the last good list rather than
-      // failing open, and retry on the next check.
-      console.error("[blocklist] failed to load, keeping previous list:", error);
-      lastMtimeMs = -1;
     }
-  }
 
-  return compiled;
+    return current;
+  };
 }
+
+const load = makeLoader<BlocklistFile>(BLOCKLIST_PATH, "blocklist", compile);
+const loadAllowlist = makeLoader<AllowlistFile>(
+  ALLOWLIST_PATH,
+  "allowlist",
+  compileAllowlist
+);
 
 // --- matching --------------------------------------------------------------
 
@@ -240,6 +338,11 @@ function load(): CompiledBlocklist {
  */
 export function getBlockReason(ip: string, userAgent: string): string | null {
   const list = load();
+
+  // A request from a published search-engine range is never blocked. Without
+  // this, a broad CIDR or UA rule aimed at abusive traffic can silently
+  // de-index the site.
+  if (isAllowlisted(ip)) return null;
 
   if (list.ips.has(ip)) return `ip:${ip}`;
 
@@ -260,6 +363,28 @@ export function getBlockReason(ip: string, userAgent: string): string | null {
   }
 
   return null;
+}
+
+/**
+ * True if `ip` falls in a published crawler range listed in data/allowlist.json.
+ *
+ * Used to verify a crawler User-Agent before granting it a raised rate limit —
+ * the UA header alone is trivially forged, so it must never be the only check.
+ * A missing allowlist file returns false everywhere, which degrades to the
+ * normal rate limit rather than opening anything up.
+ */
+export function isAllowlisted(ip: string): boolean {
+  const list = loadAllowlist();
+  if (list.ips.size === 0 && list.cidrs.length === 0) return false;
+
+  if (list.ips.has(ip)) return true;
+
+  const addr = parseIP(ip);
+  if (!addr) return false;
+  for (const cidr of list.cidrs) {
+    if (inCidr(addr, cidr)) return true;
+  }
+  return false;
 }
 
 /**

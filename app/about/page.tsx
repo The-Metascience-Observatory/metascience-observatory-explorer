@@ -1,9 +1,13 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "About | The Metascience Observatory Explorer",
+  // Bare "About" — the root layout's title template appends the site name.
+  title: "About the Data Sources",
   description:
-    "About the data sources powering the Metascience Observatory Explorer.",
+    "Where the Explorer's data comes from: SciSciNet-V2, the OpenAIRE Graph, " +
+    "Retraction Watch, ClinicalTrials.gov, MeSH, Scopus and DOAJ — with " +
+    "licences and citation guidance.",
+  alternates: { canonical: "/about" },
 };
 
 export default function AboutPage() {
@@ -217,8 +221,9 @@ export default function AboutPage() {
             (gold/green/bronze/hybrid/diamond), links from papers to 3.9M
             funded projects (European Commission and ~40 national funders),
             linked research datasets and software, institutional project
-            portfolios, and 33.5M additional DOI-bearing papers not present
-            in SciSciNet. Manghi, P., Atzori, C., Bardi, A., et al.{" "}
+            portfolios, 33.5M additional DOI-bearing papers not present
+            in SciSciNet, and the citation graph for those papers (references,
+            citing papers, and BIP! impact indicators). Manghi, P., Atzori, C., Bardi, A., et al.{" "}
             <em>OpenAIRE Graph Dataset</em>, Zenodo,{" "}
             <a
               href="https://doi.org/10.5281/zenodo.3516917"
@@ -229,6 +234,24 @@ export default function AboutPage() {
               doi:10.5281/zenodo.3516917
             </a>
             .
+          </li>
+          <li>
+            <a
+              href="https://bip.imsi.athenarc.gr/"
+              className="text-blue-600 hover:underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              BIP! indicators
+            </a>{" "}
+            (ATHENA Research Center, CC-BY, redistributed within the OpenAIRE
+            Graph) — citation counts and citation-based impact measures for
+            OpenAIRE papers: influence (long-term impact, PageRank-family),
+            popularity (current attention, AttRank), and impulse (citations in a
+            fixed 3-year window after publication), each with a percentile class
+            from C1 (top 0.01%) to C5 (bottom 90%). Vergoulis, T., Kanellos, I.,
+            Chatzopoulos, S., et al. <em>BIP! DB: A Dataset of Impact Measures
+            for Research Products</em>.
           </li>
           <li>
             <a

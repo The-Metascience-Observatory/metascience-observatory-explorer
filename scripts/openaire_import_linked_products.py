@@ -27,7 +27,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from openaire_common import stream_tar_jsonl, extract_pids
+from openaire_common import KeymapTranslator, openaire_hex, stream_tar_jsonl, extract_pids
 
 RELATION_TARS = [
     "product_IsSupplementedBy.tar",
@@ -66,21 +66,15 @@ def parse_year(date_str):
         return None
 
 
-def translate_sources(out, sources):
-    result = {}
-    ids = list(sources)
-    for i in range(0, len(ids), 500):
-        chunk = ids[i : i + 500]
-        ph = ",".join("?" * len(chunk))
-        for oaid, paperid in out.execute(
-            f"SELECT openaire_id, paperid FROM paper_openaire WHERE openaire_id IN ({ph})", chunk
-        ):
-            result[oaid] = paperid
-        for oaid, appid in out.execute(
-            f"SELECT openaire_id, id FROM openaire_papers WHERE openaire_id IN ({ph})", chunk
-        ):
-            result.setdefault(oaid, appid)
-    return result
+def translate_sources(keymap, sources):
+    """openaire product id -> app paper key (SciSciNet paperid or 'OA…' id).
+
+    Keys on the md5 hex, NOT the full id string -- see the identical note in
+    openaire_import_relations.translate_targets() and KeymapTranslator in
+    openaire_common.py. The previous full-string matching here is why
+    paper_linked_products was under-populated.
+    """
+    return keymap.translate(sources)
 
 
 def main():
@@ -88,8 +82,16 @@ def main():
     ap.add_argument("--dump-dir", required=True)
     ap.add_argument("--db-path", required=True)
     ap.add_argument("--links-db", required=True)
+    ap.add_argument(
+        "--keymap-dir",
+        required=True,
+        help="directory of map_lo/map_hi/map_val .npy built by openaire_build_keymap.py",
+    )
     ap.add_argument("--rebuild", action="store_true")
     args = ap.parse_args()
+
+    keymap = KeymapTranslator(Path(args.keymap_dir).expanduser())
+    print(f"loaded keymap: {len(keymap):,} md5 keys")
 
     dump = Path(args.dump_dir)
     out = sqlite3.connect(Path(args.db_path).expanduser())
@@ -108,7 +110,11 @@ def main():
     links = sqlite3.connect(links_path)
     links.executescript(
         """PRAGMA journal_mode=OFF; PRAGMA synchronous=OFF;
-           CREATE TABLE links (paper_key TEXT, target TEXT, relation TEXT);"""
+           -- target_hex, NOT the full target id: the relation dumps reference
+           -- products under doi_dedup___::<hex> while the dataset/software tars
+           -- carry doi_________::<hex> (etc) for the SAME product. Joining on the
+           -- full string under-matched sub-pass B exactly as it did sub-pass A.
+           CREATE TABLE links (paper_key TEXT, target_hex TEXT, relation TEXT);"""
     )
 
     # Sub-pass A: relations with a known-paper source
@@ -123,10 +129,16 @@ def main():
 
         def process(batch):
             nonlocal kept
-            translated = translate_sources(out, {s for s, _, _ in batch})
-            rows = [
-                (translated[s], t, r) for s, t, r in batch if s in translated
-            ]
+            translated = translate_sources(keymap, {s for s, _, _ in batch})
+            rows = []
+            for s_id, t_id, r in batch:
+                key = translated.get(s_id)
+                if not key:
+                    continue
+                th = openaire_hex(t_id)
+                if not th:
+                    continue
+                rows.append((key, th, r))
             if rows:
                 links.executemany("INSERT INTO links VALUES (?,?,?)", rows)
                 kept += len(rows)
@@ -146,10 +158,10 @@ def main():
         links.commit()
         print(f"{tar_name}: {total:,} relations, {kept:,} from known papers ({time.time() - t0:,.0f}s)")
 
-    links.execute("CREATE INDEX idx_links_target ON links(target)")
+    links.execute("CREATE INDEX idx_links_target ON links(target_hex)")
     links.commit()
     n_links = links.execute("SELECT COUNT(*) FROM links").fetchone()[0]
-    n_targets = links.execute("SELECT COUNT(DISTINCT target) FROM links").fetchone()[0]
+    n_targets = links.execute("SELECT COUNT(DISTINCT target_hex) FROM links").fetchone()[0]
     print(f"staged {n_links:,} links to {n_targets:,} distinct targets")
 
     # Sub-pass B: resolve target metadata from dataset/software/other tars
@@ -163,8 +175,11 @@ def main():
                 rid = rec.get("id")
                 if not rid:
                     continue
+                rhex = openaire_hex(rid)
+                if not rhex:
+                    continue
                 hits = links.execute(
-                    "SELECT paper_key, relation FROM links WHERE target = ?", (rid,)
+                    "SELECT paper_key, relation FROM links WHERE target_hex = ?", (rhex,)
                 ).fetchall()
                 if not hits:
                     continue

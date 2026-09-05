@@ -44,6 +44,11 @@ next-env.d.ts
 /data/*.db
 /data/*.json
 
+# generated sitemaps (scripts/generate-sitemaps.mjs) — ~41 files, rebuilt from
+# the databases, so they are published by regenerating rather than committing
+/data/sitemaps/
+/data/sitemaps.tmp/
+
 # database files
 *.db
 *.db-shm
@@ -85,3 +90,7 @@ memory
 DOAJ_journals_list/
 scopus_journals_list/
 scripts/__pycache__/
+
+# runtime logs (a single server log reached 1.76 GB)
+/logs/
+/server.log

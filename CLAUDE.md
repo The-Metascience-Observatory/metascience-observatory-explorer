@@ -38,10 +38,49 @@ All databases live in [data/](data/) and are opened read-only (except `cache.db`
 | `papers_extra.db` | PMID/PMCID mappings, newsfeed mentions |
 | `mesh.db` | MeSH term hierarchy and paper-MeSH mappings |
 | `retractions.db` | Retraction Watch data |
+| `openaire.db` | OpenAIRE Graph — projects/grants, per-paper OA status, linked datasets/software, orgs, and 33.5M first-class OpenAIRE-only papers (`openaire_papers` + `openaire_title_fts`) |
+| `openaire_abstracts.db` | Abstracts for first-class OpenAIRE papers |
+| `openaire_citations.db` | BIP! impact indicators (`openaire_paper_impact`) + packed citation edges (`openaire_refs`, `openaire_cites`) |
 | `cache.db` | **Writable** — grant (NIH/NSF) and ORCID API response cache with TTL |
 | `analytics.db` | **Writable** — visitor logs and IP geolocation cache |
 
-Optional databases (`abstracts`, `papers_extra`, `mesh`, `retractions`) return `null` from their getters if missing — APIs should handle this gracefully.
+Optional databases (`abstracts`, `papers_extra`, `mesh`, `retractions`, `openaire`, `openaire_abstracts`, `openaire_citations`) return `null` from their getters if missing — APIs should handle this gracefully.
+
+**Never `VACUUM` `openaire.db`.** Both `openaire_title_fts` and the citation edge
+keys reference `openaire_papers.rowid`, which a vacuum may renumber. The rowid
+epoch recorded in `openaire_citations.db.import_meta` guards against this;
+`scripts/openaire_verify_citations.py` checks it.
+
+### Verified column shapes — don't re-derive these
+
+Measured against the live databases; each cost a multi-minute scan to establish, and
+getting one wrong silently breaks a join rather than erroring.
+
+| Column | Shape | Consequence |
+|---|---|---|
+| `paper_summary.doi` | lowercase, **WITH** the `https://doi.org/` prefix (158.6M of 249.8M rows) | normalize before joining to any external DOI |
+| `paper_summary` | has **only `year`** — no month/day, no license, no type | publication-date work needs an external source |
+| `affiliation_summary.ror` | **bare** id (`032k75171`, no URL prefix), on 110,552 of 110,553 rows | strip `https://ror.org/` from external ROR before joining |
+| `journal_summary.issn` | **JSON array** of hyphenated ISSNs, sometimes the literal string `'null'`; 147,672 of 260,918 have a real one | reuse `build_issn_index` in `scripts/import_journal_enrichment.py:37-73` |
+| `person_summary.orcid` | **full URL** (`https://orcid.org/0000-...`), **NO INDEX**, 7,648,321 of 100.4M rows (7.62%) | joining requires a full scan; use `openaire_build_lookup.py --only orcid` |
+| `person_summary` | has only `last_known_institution`; `person_affiliations` *infers* history from papers | cannot see non-publishing periods, role titles, or PhD dates |
+| `paper_references` | 2,494,545,461 rows; measured **6.4% coverage gap** vs Crossref | gap is real, but backfilling costs ~2.8B rows — measured, not stored |
+| OpenAIRE ids | `namespace::md5hex`; `doi_dedup___::<hex>` and `doi_________::<hex>` are the SAME DOI | match on the bare hex (`openaire_hex()`), never the full string — but hex only bridges the *same* identifier kind, never `pdb`/`uniprot`/repo-local namespaces |
+
+### OpenAIRE citation edges — [lib/openaire-citations.ts](lib/openaire-citations.ts)
+
+`openaire_refs` / `openaire_cites` store one row per paper: a BLOB of little-endian
+int64 neighbor keys, pre-sorted at build time by the neighbor's citation count
+descending and capped at 1,000, plus the true pre-cap `total`. A key is
+`+W_numeric` for a SciSciNet paper or `-openaire_papers.rowid` for an OpenAIRE-only
+one, so lists mix both corpora — items carry an `openaire` flag so they link to the
+right route. Because the blob is pre-sorted, a page is one PK seek plus a buffer
+slice, and only the ≤100 ids on screen get resolved to titles. Resolution must go
+through the worker pools (`workerQuery` for `journals.db`, `openaireWorkerQuery` for
+`openaire.db`), never the main thread.
+
+SciSciNet↔SciSciNet edges are deliberately dropped at import, so anything stored
+against a `W…` key is a citation `journals.db` does *not* have.
 
 ### Connection patterns — [lib/db.ts](lib/db.ts)
 

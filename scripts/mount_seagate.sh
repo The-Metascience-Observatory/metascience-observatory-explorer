@@ -74,7 +74,7 @@ tail -3 "$DEPLOY/copy.log" 2>&1
 
 echo
 if tail -5 "$DEPLOY/copy.log" 2>/dev/null | grep -q 'COPY VERIFIED OK'; then
-  echo "==> OK. Drive is ready. Next: PROD_HANDOFF.md 'Deployment steps'."
+  echo "==> OK. Drive is ready. Next: deployment steps are in git history (git show HEAD~1:PROD_HANDOFF.md)"
   echo "    Free space on the data/ volume:"
   df -h "$(dirname "$(readlink -f "$(dirname "$0")")")/data" 2>/dev/null || df -h .
 else

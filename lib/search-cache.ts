@@ -141,8 +141,15 @@ const funderSearchCache = new LRUCache<unknown>(5000, 15 * 60 * 1000);
 // Cache 5,000 queries * ~20KB avg = ~100MB
 const trialSearchCache = new LRUCache<unknown>(5000, 15 * 60 * 1000);
 
+// Trends aggregates: a bounded set of precomputed-rollup views plus country
+// drill-downs. Its own cache so trends traffic can never evict paper-search
+// results, and a long TTL because the rollups only change on reimport.
+// Cache 2,000 views * ~40KB avg = ~80MB
+const trendsCache = new LRUCache<unknown>(2000, 60 * 60 * 1000); // 1 hour TTL
+
 // Export cache instances
 export const searchCaches = {
+  trends: trendsCache,
   papers: paperSearchCache,
   persons: personSearchCache,
   journals: journalSearchCache,

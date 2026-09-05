@@ -1,123 +1,114 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
+import { ArrowLeft, Beaker } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PublicationsChart } from "@/components/PublicationsChart";
 import { CitationsChart } from "@/components/CitationsChart";
-import type { FunderDetails } from "@/lib/types";
+import { JsonLd } from "@/components/JsonLd";
+import { getFunderDetails, getFunderSummary } from "@/lib/queries/funders";
+import { breadcrumbLd, organizationLd } from "@/lib/jsonld";
+import { stripInlineHtml, truncate } from "@/lib/sanitize";
 import { formatNumber, getCountryName } from "@/lib/utils";
-import {
-  ArrowLeft,
-  Loader2,
-  Beaker,
-} from "lucide-react";
 
-// Extract root URL from a full URL (e.g., "http://www.nih.gov/foo" -> "nih.gov")
+/** ~32k funders — a bounded, fully indexable set, so cache rather than force dynamic. */
+export const revalidate = 86400;
+
+type Props = { params: Promise<{ funderid: string }> };
+
+/** "http://www.nih.gov/foo" -> "nih.gov" */
 function getRootUrl(url: string | null): string | null {
   if (!url) return null;
   try {
-    const parsed = new URL(url);
-    return parsed.hostname.replace(/^www\./, '');
+    return new URL(url).hostname.replace(/^www\./, "");
   } catch {
     return url;
   }
 }
 
-export default function FunderDetailPage() {
-  const params = useParams();
-  const funderid = params.funderid as string;
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { funderid } = await params;
+  const summary = await getFunderSummary(funderid);
 
-  const [data, setData] = useState<FunderDetails | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const res = await fetch(`/api/funders/${funderid}`);
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || `HTTP ${res.status}`);
-        }
-        const json = await res.json();
-        setData(json);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Failed to load funder");
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchData();
-  }, [funderid]);
-
-  if (loading) {
-    return (
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <div className="flex items-center justify-center py-24">
-          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-          <span className="ml-3 text-gray-500">Loading funder details...</span>
-        </div>
-      </div>
-    );
+  if (!summary) {
+    return { title: "Funder not found", robots: { index: false, follow: false } };
   }
 
-  if (error || !data) {
-    return (
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <Link
-          href="/"
-          className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 mb-4"
-        >
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          Back to search
-        </Link>
-        <div className="text-center py-24">
-          <p className="text-red-600 text-lg">{error || "Funder not found"}</p>
-          <p className="text-gray-500 mt-2">
-            Make sure the preprocessing script has been run with funder data.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  const country = summary.country_code ? getCountryName(summary.country_code) : null;
+  const title = `${summary.display_name} — Funded Publications & Research Impact`;
+  // The dataset carries a real description for many funders; prefer it.
+  const description = summary.description
+    ? truncate(stripInlineHtml(summary.description), 200)
+    : `${summary.display_name}${country ? ` (${country})` : ""}: ` +
+      `${formatNumber(summary.grants_count)} grants supporting ` +
+      `${formatNumber(summary.works_count)} publications with ` +
+      `${formatNumber(summary.cited_by_count)} citations (h-index ${summary.h_index ?? "n/a"}). ` +
+      "Funding trends and supported research.";
+  const canonical = `/funders/${summary.funderid}`;
+
+  return {
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: { title, description, url: canonical },
+  };
+}
+
+export default async function FunderDetailPage({ params }: Props) {
+  const { funderid } = await params;
+  const data = await getFunderDetails(funderid);
+  if (!data) notFound();
 
   const { summary, yearlyStats, concepts } = data;
 
-  // Convert yearlyStats to chart format (filter out 2025 since data is incomplete)
+  // 2025 is a partial year in this snapshot and would render as a false cliff.
   const chartData = yearlyStats
-    .filter(s => s.year < 2025)
-    .map(s => ({
+    .filter((s) => s.year < 2025)
+    .map((s) => ({
       year: s.year,
       paper_count: s.works_count,
       total_citations: s.cited_by_count,
     }));
 
-  // Separate concepts by level
-  const broadFields = concepts.filter(c => c.level === 0);
-  const subFields = concepts.filter(c => c.level === 1);
+  const broadFields = concepts.filter((c) => c.level === 0);
+  const subFields = concepts.filter((c) => c.level === 1);
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 overflow-hidden">
-      {/* Back link */}
+      <JsonLd
+        data={[
+          organizationLd({
+            id: summary.funderid,
+            path: `/funders/${summary.funderid}`,
+            name: summary.display_name,
+            // Plain Organization rather than schema.org's FundingAgency: the
+            // latter is still a pending-extension type and trips warnings in
+            // the Rich Results Test for no added benefit.
+            type: "Organization",
+            countryCode: summary.country_code,
+            homepageUrl: summary.homepage_url,
+            description: summary.description,
+          }),
+          breadcrumbLd([
+            ["Funders", "/funders"],
+            [summary.display_name, `/funders/${summary.funderid}`],
+          ]),
+        ]}
+      />
+
       <Link
-        href="/"
+        href="/funders"
         className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 mb-4"
       >
         <ArrowLeft className="h-4 w-4 mr-1" />
-        Back to search
+        All funders
       </Link>
 
-      {/* Main layout: Infobox left, Charts right */}
       <div className="grid lg:grid-cols-[352px_1fr] gap-8 mb-8">
-        {/* Left: Infobox */}
         <Card>
           <CardContent className="pt-6">
-            {/* Name */}
             <h1 className="text-2xl font-bold mb-2">{summary.display_name}</h1>
 
-            {/* Description */}
             {summary.description && (
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                 {summary.description}
@@ -139,7 +130,6 @@ export default function FunderDetailPage() {
 
             <p className="text-xs text-gray-400 mb-4">Data for Jan 2012 – Jan 2025</p>
 
-            {/* Key stats */}
             <div className="space-y-3 mb-6">
               {summary.country_code && (
                 <div className="flex items-center justify-between">
@@ -182,7 +172,6 @@ export default function FunderDetailPage() {
               )}
             </div>
 
-            {/* Research Fields */}
             {concepts.length > 0 && (
               <div className="border-t pt-4">
                 <div className="flex items-center gap-2 text-sm font-medium mb-2">
@@ -214,7 +203,6 @@ export default function FunderDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Right: Charts stacked */}
         <div className="space-y-6">
           {chartData.length > 0 && (
             <>
@@ -228,7 +216,7 @@ export default function FunderDetailPage() {
               </Card>
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base">Total Citations Per Yeare</CardTitle>
+                  <CardTitle className="text-base">Total Citations Per Year</CardTitle>
                   <p className="text-xs text-gray-500 mt-1">
                     Total citations received by works published in each year
                   </p>
