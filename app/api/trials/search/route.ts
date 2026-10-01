@@ -4,6 +4,7 @@ import { errorResponse, validateQueryLength, parsePagination } from "@/lib/api-u
 import type { TrialSearchItem } from "@/lib/types";
 import { searchCaches, generateCacheKey } from "@/lib/search-cache";
 import { workerQuery, workerQueryOne } from "@/lib/worker-pool";
+import { buildFtsQuery } from "@/lib/fts";
 
 /**
  * Server-side trial search using SQLite.
@@ -187,7 +188,19 @@ export async function GET(request: NextRequest) {
       }
     } else {
       // Use FTS5 for fast title search
-      const ftsQuery = query!.split(/\s+/).filter(w => w.length > 0).map(w => `"${w}"*`).join(' ');
+      // Previously built inline with no sanitization, so FTS5 metacharacters
+      // reached MATCH directly. minWordLength 1 preserves that builder's other
+      // behaviour: trial titles turn on single-character qualifiers ("hepatitis
+      // B", "vitamin D", "type 1 diabetes"), so dropping them would make those
+      // queries indistinguishable from each other.
+      const ftsQuery = buildFtsQuery(query!, { minWordLength: 1 });
+
+      // Sanitizing can empty the query (e.g. "***"), and an empty FTS5 MATCH is
+      // a syntax error rather than an empty result. The other search routes
+      // guard the same way; this one could not previously reach the case.
+      if (!ftsQuery) {
+        return NextResponse.json({ results: [], total: 0, offset, limit, hasMore: false });
+      }
 
       // Get total count
       const countSql = `

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PublicationsChart } from "@/components/PublicationsChart";
 import { ArrowLeft, Loader2, Building2, ChevronUp, ChevronDown } from "lucide-react";
 import { formatNumber, getCountryName } from "@/lib/utils";
+import { BROWSE_PAGE_SIZE } from "@/lib/constants";
 
 interface CountryStats {
   funder_count: number;
@@ -43,7 +44,6 @@ interface YearlyStatsResponse {
   yearlyStats: YearlyStats[];
 }
 
-const PAGE_SIZE = 50;
 
 type SortColumn = "name" | "works" | "citations" | "avgCitations" | "grants";
 type SortDirection = "asc" | "desc";
@@ -75,7 +75,7 @@ export default function CountryFundersPage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const res = await fetch(`/api/funders/country/${countryCode}?limit=${PAGE_SIZE}&offset=0`);
+        const res = await fetch(`/api/funders/country/${countryCode}?limit=${BROWSE_PAGE_SIZE}&offset=0`);
         if (!res.ok) {
           const err = await res.json();
           throw new Error(err.error || `HTTP ${res.status}`);
@@ -120,7 +120,7 @@ export default function CountryFundersPage() {
 
     setLoadingMore(true);
     try {
-      const res = await fetch(`/api/funders/country/${countryCode}?limit=${PAGE_SIZE}&offset=${offset}`);
+      const res = await fetch(`/api/funders/country/${countryCode}?limit=${BROWSE_PAGE_SIZE}&offset=${offset}`);
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }

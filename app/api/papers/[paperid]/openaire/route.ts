@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getOpenaireDb } from "@/lib/db";
+import { getOpenaireDb, hasTable } from "@/lib/db";
 import { errorResponse } from "@/lib/api-utils";
 import type {
   OpenaireLinkedProduct,
@@ -33,13 +33,6 @@ interface LinkedProductRow {
 }
 
 const EMPTY: PaperOpenaireResponse = { openaire: null, projects: [], linkedProducts: [] };
-
-// Tables are added by successive import passes — tolerate their absence.
-function hasTable(db: import("better-sqlite3").Database, name: string): boolean {
-  return !!db
-    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?")
-    .get(name);
-}
 
 export async function GET(
   request: NextRequest,

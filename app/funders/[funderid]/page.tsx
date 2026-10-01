@@ -10,6 +10,7 @@ import { getFunderDetails, getFunderSummary } from "@/lib/queries/funders";
 import { breadcrumbLd, organizationLd } from "@/lib/jsonld";
 import { stripInlineHtml, truncate } from "@/lib/sanitize";
 import { formatNumber, getCountryName } from "@/lib/utils";
+import { getRootUrl } from "@/lib/format";
 
 /** ~32k funders — a bounded, fully indexable set, so cache rather than force dynamic. */
 export const revalidate = 86400;
@@ -17,15 +18,6 @@ export const revalidate = 86400;
 type Props = { params: Promise<{ funderid: string }> };
 
 /** "http://www.nih.gov/foo" -> "nih.gov" */
-function getRootUrl(url: string | null): string | null {
-  if (!url) return null;
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return url;
-  }
-}
-
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { funderid } = await params;
   const summary = await getFunderSummary(funderid);

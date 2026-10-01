@@ -4,44 +4,11 @@ import { errorResponse, validateQueryLength, parsePagination } from "@/lib/api-u
 import type { PersonSearchItem } from "@/lib/types";
 import { searchCaches, generateCacheKey } from "@/lib/search-cache";
 import { workerQuery } from "@/lib/worker-pool";
+import { buildFtsQuery } from "@/lib/fts";
 
-/**
- * Sanitize a word for FTS5 query.
- * FTS5 special chars: " * - ^ ( ) : AND OR NOT NEAR
- * We strip these to prevent injection attacks.
- */
-function sanitizeFtsWord(word: string): string {
-  // Only keep alphanumeric characters and common name characters (apostrophe, period)
-  // This prevents any FTS5 syntax injection
-  return word.replace(/[^a-zA-Z0-9'.]/g, '').trim();
-}
-
-/**
- * Build FTS5 query from user input.
- * "daniel elton" -> "daniel"* "elton"*
- * This matches names containing words starting with these terms.
- */
-function buildFtsQuery(query: string): string {
-  const words = query.trim().toLowerCase().split(/\s+/).filter(w => w.length > 0);
-  if (words.length === 0) return '';
-
-  // Each word becomes a prefix search term
-  // Use quotes to ensure exact word prefix matching
-  return words.map(word => {
-    // Handle hyphenated names: "fernandez-serra" -> fernandez OR serra
-    if (word.includes('-')) {
-      const parts = word.split('-').filter(p => p.length > 0);
-      return parts
-        .map(p => sanitizeFtsWord(p))
-        .filter(p => p.length > 0)
-        .map(p => `"${p}"*`)
-        .join(' ');
-    }
-    const sanitized = sanitizeFtsWord(word);
-    if (!sanitized) return '';
-    return `"${sanitized}"*`;
-  }).filter(w => w.length > 0).join(' ');
-}
+// Names keep apostrophes and periods ("O'Brien", "J.R."), and single-letter
+// initials are meaningful, so the title defaults do not apply here.
+const NAME_FTS = { allowChars: "'.", minWordLength: 1 };
 
 /**
  * Check if a first name in the database matches the search first name.
@@ -177,7 +144,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const { offset, limit } = parsePagination(searchParams, { limit: 50, maxLimit: 100 });
-    const ftsQuery = buildFtsQuery(query);
+    const ftsQuery = buildFtsQuery(query, NAME_FTS);
 
     if (!ftsQuery) {
       return NextResponse.json({ results: [], total: 0, offset: 0, limit, hasMore: false });

@@ -6,16 +6,12 @@ import { breadcrumbLd } from "@/lib/jsonld";
 import { absoluteUrl } from "@/lib/site";
 import { stripInlineHtml, truncate } from "@/lib/sanitize";
 import TrialDetailClient from "./TrialDetailClient";
+import { formatTrialStatus } from "@/lib/format";
 
 /** ~563k trials — bounded, so cache rather than force dynamic. */
 export const revalidate = 86400;
 
 type Props = { params: Promise<{ nctid: string }> };
-
-function formatStatus(status: string | null | undefined): string {
-  if (!status) return "";
-  return status.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { nctid } = await params;
@@ -35,7 +31,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
           trialTitle + ".",
           [summary.phase, summary.study_type].filter(Boolean).join(" "),
           summary.sponsor ? `Sponsored by ${summary.sponsor}.` : "",
-          summary.status ? `Status: ${formatStatus(summary.status)}.` : "",
+          summary.status ? `Status: ${formatTrialStatus(summary.status, "")}.` : "",
           summary.enrollment ? `Enrollment ${summary.enrollment}.` : "",
           summary.conditions ? `Conditions: ${summary.conditions}.` : "",
           `${summary.paper_count} linked publications.`,
@@ -79,7 +75,7 @@ export default async function TrialDetailPage({ params }: Props) {
       ? { description: truncate(stripInlineHtml(summary.brief_summary), 500) }
       : {}),
     ...(summary.phase ? { phase: summary.phase } : {}),
-    ...(summary.status ? { status: formatStatus(summary.status) } : {}),
+    ...(summary.status ? { status: formatTrialStatus(summary.status, "") } : {}),
     ...(summary.sponsor
       ? { sponsor: { "@type": "Organization", name: summary.sponsor } }
       : {}),

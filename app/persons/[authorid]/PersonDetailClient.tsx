@@ -22,6 +22,7 @@ import {
   ChevronDown,
   ChevronRight,
   ArrowUpDown,
+  Download,
   FlaskConical,
   HelpCircle,
 } from "lucide-react";
@@ -1480,6 +1481,17 @@ export default function PersonDetailClient({
               >
                 Year
               </button>
+              {pubTotal > 0 && (
+                <a
+                  href={`/api/persons/${authorid}/dois`}
+                  download
+                  className="ml-2 flex items-center gap-1 px-2 py-1 text-sm rounded text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+                  title="Download a CSV of the DOIs for all publications"
+                >
+                  <Download className="h-4 w-4" />
+                  DOIs (CSV)
+                </a>
+              )}
             </div>
           </div>
 

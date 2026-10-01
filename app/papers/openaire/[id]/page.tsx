@@ -20,9 +20,8 @@ import { PaperListCard } from "@/components/PaperListCard";
 import { PaperCitationsChart } from "@/components/PaperCitationsChart";
 import { formatNumber } from "@/lib/utils";
 import { ArrowLeft, ExternalLink, Loader2, Globe } from "lucide-react";
+import { EDGE_CAP } from "@/lib/constants";
 
-// Matches EDGE_CAP in lib/openaire-citations.ts and --cap in the packer.
-const MAX_CITATIONS = 1000;
 
 export default function OpenairePaperPage() {
   const params = useParams();
@@ -135,7 +134,7 @@ export default function OpenairePaperPage() {
     setCitationsLoading(true);
     try {
       const offset = citations.length;
-      const remaining = Math.min(MAX_CITATIONS, citationsTotal) - offset;
+      const remaining = Math.min(EDGE_CAP, citationsTotal) - offset;
       if (remaining <= 0) {
         setHasMoreCitations(false);
         return;
@@ -146,7 +145,7 @@ export default function OpenairePaperPage() {
       if (res.ok) {
         const json = await res.json();
         setCitations((prev) => [...prev, ...json.citations]);
-        setHasMoreCitations(json.hasMore && offset + json.citations.length < MAX_CITATIONS);
+        setHasMoreCitations(json.hasMore && offset + json.citations.length < EDGE_CAP);
       }
     } catch (e) {
       console.error("Failed to load more citations:", e);
@@ -430,8 +429,8 @@ export default function OpenairePaperPage() {
             sentinelRef={citationsEndRef}
             emptyMessage="No citing papers found in the OpenAIRE Graph"
             maxNote={
-              citations.length >= MAX_CITATIONS
-                ? `Showing the ${formatNumber(MAX_CITATIONS)} most-cited of ${formatNumber(citationsTotal)} citing papers`
+              citations.length >= EDGE_CAP
+                ? `Showing the ${formatNumber(EDGE_CAP)} most-cited of ${formatNumber(citationsTotal)} citing papers`
                 : undefined
             }
           />

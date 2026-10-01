@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, parsePagination } from "@/lib/api-utils";
 import { citationsAvailable, keyForPaperId, loadNeighborPage } from "@/lib/openaire-citations";
 import type { OpenaireReferencesResponse } from "@/lib/types";
+import { CITATION_PAGE_SIZE } from "@/lib/constants";
 
 const ID_RE = /^OA[0-9a-f]{32}$/;
-const PAGE_SIZE = 100;
 
 /** Papers this OpenAIRE paper cites, from the OpenAIRE Graph Cites relations. */
 export async function GET(
@@ -12,7 +12,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { offset, limit } = parsePagination(request.nextUrl.searchParams, { limit: PAGE_SIZE });
+  const { offset, limit } = parsePagination(request.nextUrl.searchParams, { limit: CITATION_PAGE_SIZE });
 
   // Fail soft rather than 400/500: this is a side panel on a page that must
   // still render without it (matches the abstract route's behavior).

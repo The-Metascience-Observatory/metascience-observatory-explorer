@@ -1,22 +1,11 @@
 import { getOpenaireCitationsDb } from "@/lib/db";
 import { workerQuery, openaireWorkerQuery } from "@/lib/worker-pool";
 import type { OpenaireRelatedPaper, PaperCitationHistory } from "@/lib/types";
+import { EDGE_CAP } from "@/lib/constants";
 
-/**
- * Reading the packed citation edges built by scripts/openaire_pack_citations.py.
- *
- * Edges are stored as adjacency lists, not rows: one BLOB of little-endian int64
- * neighbor keys per paper, PRE-SORTED at build time by the neighbor's citation
- * count descending and truncated to CAP. That means a page of results is a seek
- * plus a buffer slice, and only the <=100 ids actually on screen need resolving.
- *
- * The int64 key encodes which corpus a neighbor belongs to:
- *   k > 0   SciSciNet paper, paperid = 'W' + k        (resolve via journals.db)
- *   k < 0   OpenAIRE-only paper, openaire_papers.rowid = -k
- */
+// Re-exported so server callers can keep importing it from here.
+export { EDGE_CAP };
 
-/** Must match --cap in openaire_pack_citations.py. */
-export const EDGE_CAP = 1000;
 
 /** SQLite variable limit is 32766; 500 keeps the worker stmt cache small. */
 const BATCH = 500;
@@ -59,7 +48,7 @@ function decodeKeys(blob: Buffer, offset: number, limit: number): number[] {
  * Never query journals.db or openaire.db on the main thread here - 100 index
  * probes into a cold 1.5TB/50GB file would stall every other request.
  */
-export async function resolveKeys(keys: number[]): Promise<OpenaireRelatedPaper[]> {
+async function resolveKeys(keys: number[]): Promise<OpenaireRelatedPaper[]> {
   const wIds: string[] = [];
   const oaRowids: number[] = [];
   for (const k of keys) {
@@ -210,20 +199,6 @@ export async function loadNeighborPage(
   const stored = Math.floor(row.neighbors.length / 8);
   const items = await resolveKeys(decodeKeys(row.neighbors, offset, limit));
   return { items, total: row.total, stored, truncated: row.total > stored };
-}
-
-/** Total stored neighbor count without resolving anything. */
-export function neighborTotal(table: EdgeTable, key: number): number {
-  const cdb = getOpenaireCitationsDb();
-  if (!cdb) return 0;
-  try {
-    const row = cdb.prepare(`SELECT total FROM ${table} WHERE k = ?`).get(key) as
-      | { total: number }
-      | undefined;
-    return row?.total ?? 0;
-  } catch {
-    return 0;
-  }
 }
 
 /**

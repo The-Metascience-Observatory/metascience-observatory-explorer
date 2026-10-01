@@ -5,6 +5,7 @@ import { getOpenaireCitationsDb } from "@/lib/db";
 import type { PaperSearchItem } from "@/lib/types";
 import { searchCaches, generateCacheKey } from "@/lib/search-cache";
 import { workerQuery, openaireWorkerQuery } from "@/lib/worker-pool";
+import { buildFtsQuery } from "@/lib/fts";
 
 /**
  * Fill in BIP! citation counts for OpenAIRE search hits.
@@ -32,39 +33,6 @@ function withOpenaireCitationCounts(items: PaperSearchItem[]): PaperSearchItem[]
   } catch {
     return items; // impact table not built yet
   }
-}
-
-/**
- * Sanitize a word for FTS5 query.
- * FTS5 special chars: " * - ^ ( ) : AND OR NOT NEAR
- * We strip these to prevent injection attacks.
- */
-function sanitizeFtsWord(word: string): string {
-  // Keep alphanumeric characters and common punctuation in titles
-  return word.replace(/[^a-zA-Z0-9]/g, '').trim();
-}
-
-/**
- * Build FTS5 query from user input.
- * "machine learning" -> "machine"* "learning"*
- * "Cerebrolysin-Improved" -> "cerebrolysin"* "improved"*
- * This matches titles containing words starting with these terms.
- */
-function buildFtsQuery(query: string): string {
-  const words = query.trim().toLowerCase().split(/\s+/).filter(w => w.length > 0);
-  if (words.length === 0) return '';
-
-  // Each word becomes a prefix search term
-  // Handle hyphenated words by splitting them
-  return words.flatMap(word => {
-    // Split on hyphens to handle hyphenated words
-    const parts = word.split('-').filter(p => p.length > 0);
-    return parts.map(part => {
-      const sanitized = sanitizeFtsWord(part);
-      if (!sanitized || sanitized.length < 2) return '';
-      return `"${sanitized}"*`;
-    });
-  }).filter(w => w.length > 0).join(' ');
 }
 
 // Server-side search using SQLite FTS5

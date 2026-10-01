@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import type { TrialSearchItem } from "@/lib/types";
 import { ExternalLink } from "lucide-react";
+import { formatTrialStatus } from "@/lib/format";
 
 interface TrialCardProps {
   trial: TrialSearchItem;
@@ -32,11 +33,6 @@ function getStatusColor(status: string | null): string {
   }
 }
 
-function formatStatus(status: string | null): string {
-  if (!status) return "Unknown";
-  return status.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
-}
-
 export const TrialCard = memo(function TrialCard({ trial, compact = false, hideStatus = false }: TrialCardProps) {
   return (
     <Link href={`/trials/${trial.nct_id}`}>
@@ -49,7 +45,7 @@ export const TrialCard = memo(function TrialCard({ trial, compact = false, hideS
               </h3>
               {!hideStatus && trial.status && (
                 <span className={`px-1.5 py-0.5 text-xs rounded flex-shrink-0 ${getStatusColor(trial.status)}`}>
-                  {formatStatus(trial.status)}
+                  {formatTrialStatus(trial.status)}
                 </span>
               )}
             </div>

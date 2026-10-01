@@ -12,6 +12,7 @@ import {
   Newspaper,
   Info,
 } from "lucide-react";
+import { cleanDoi, formatDocType, formatPatentId, getLanguageName, getPatentUrl } from "@/lib/format";
 
 // Types for lite paper data
 interface LitePaperData {
@@ -51,65 +52,6 @@ interface ExtraData {
   newsfeed: Array<{ url: string; timestamp: string }>;
   pubmed: { pmid: number | null; pmcid: number | null } | null;
   patents: Array<{ patent: string; isUspto: boolean }>;
-}
-
-// Helper to clean DOI - remove any existing https://doi.org/ prefix
-function cleanDoi(doi: string | null): string | null {
-  if (!doi) return null;
-  return doi.replace(/^https?:\/\/doi\.org\//i, "");
-}
-
-// Convert patent ID to Google Patents URL
-function getPatentUrl(patentId: string): string {
-  const normalized = patentId.toUpperCase().replace(/-/g, "");
-  return `https://patents.google.com/patent/${normalized}`;
-}
-
-// Format patent ID for display
-function formatPatentId(patentId: string): string {
-  const parts = patentId.split("-");
-  if (parts.length >= 2) {
-    const country = parts[0].toUpperCase();
-    const number = parts[1];
-    const kind = parts[2]?.toUpperCase() || "";
-    const formattedNumber =
-      country === "US" && /^\d+$/.test(number)
-        ? parseInt(number, 10).toLocaleString()
-        : number;
-    return `${country} ${formattedNumber}${kind ? " " + kind : ""}`;
-  }
-  return patentId.toUpperCase();
-}
-
-// Language code to human-readable name mapping
-const LANGUAGE_NAMES: Record<string, string> = {
-  en: "English",
-  zh: "Chinese",
-  es: "Spanish",
-  de: "German",
-  fr: "French",
-  ja: "Japanese",
-  pt: "Portuguese",
-  ru: "Russian",
-  ko: "Korean",
-  it: "Italian",
-  nl: "Dutch",
-  pl: "Polish",
-  tr: "Turkish",
-  ar: "Arabic",
-};
-
-function getLanguageName(code: string | null): string {
-  if (!code) return "Unknown";
-  return LANGUAGE_NAMES[code.toLowerCase()] || code.toUpperCase();
-}
-
-// Format document type for display
-function formatDocType(docType: string | null): string {
-  if (!docType) return "Unknown";
-  return docType
-    .replace(/[-_]/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 interface LitePaperPageProps {

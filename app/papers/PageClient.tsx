@@ -8,8 +8,8 @@ import { Card } from "@/components/ui/card";
 import { PaperCard } from "@/components/PaperCard";
 import type { PaperSearchItem } from "@/lib/types";
 import { Search, Loader2, ArrowLeft, FileText } from "lucide-react";
+import { BROWSE_PAGE_SIZE } from "@/lib/constants";
 
-const PAGE_SIZE = 50;
 
 interface SearchResponse {
   results: PaperSearchItem[];
@@ -37,26 +37,9 @@ function PapersSearchContent() {
   const [offset, setOffset] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [indexMissing, setIndexMissing] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
 
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
-
-  // Load total paper count on mount
-  useEffect(() => {
-    async function loadCount() {
-      try {
-        const res = await fetch("/api/papers/search");
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        await res.json();
-      } catch (e) {
-        console.error("Failed to load paper count:", e);
-      } finally {
-        setInitialLoading(false);
-      }
-    }
-    loadCount();
-  }, []);
 
   // Run initial search if query param exists
   useEffect(() => {
@@ -84,7 +67,7 @@ function PapersSearchContent() {
     try {
       const currentOffset = isLoadMore ? offset : 0;
       const res = await fetch(
-        `/api/papers/search?q=${encodeURIComponent(searchQuery)}&limit=${PAGE_SIZE}&offset=${currentOffset}`
+        `/api/papers/search?q=${encodeURIComponent(searchQuery)}&limit=${BROWSE_PAGE_SIZE}&offset=${currentOffset}`
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: SearchResponse = await res.json();
@@ -162,17 +145,6 @@ function PapersSearchContent() {
       }
     };
   }, [loading, hasMore, loadingMore, loadMore, submittedQuery]);
-
-  if (initialLoading) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
-        <div className="flex items-center justify-center py-24">
-          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-          <span className="ml-3 text-gray-500">Loading...</span>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">

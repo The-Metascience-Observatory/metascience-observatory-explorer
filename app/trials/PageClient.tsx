@@ -8,8 +8,8 @@ import { Card } from "@/components/ui/card";
 import { TrialCard } from "@/components/TrialCard";
 import type { TrialSearchItem } from "@/lib/types";
 import { Search, Loader2, ArrowLeft, FlaskConical, Filter, X } from "lucide-react";
+import { BROWSE_PAGE_SIZE } from "@/lib/constants";
 
-const PAGE_SIZE = 50;
 
 // Available trial phases
 const TRIAL_PHASES = [
@@ -50,28 +50,11 @@ function TrialsSearchContent() {
   const [hasMore, setHasMore] = useState(false);
   const [offset, setOffset] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [initialLoading, setInitialLoading] = useState(true);
   const [selectedPhases, setSelectedPhases] = useState<Set<string>>(new Set(TRIAL_PHASES.map(p => p.value)));
   const [showFilters, setShowFilters] = useState(false);
 
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
-
-  // Load total trial count on mount
-  useEffect(() => {
-    async function loadCount() {
-      try {
-        const res = await fetch("/api/trials/search");
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        await res.json();
-      } catch (e) {
-        console.error("Failed to load trial count:", e);
-      } finally {
-        setInitialLoading(false);
-      }
-    }
-    loadCount();
-  }, []);
 
   // Run initial search if query or intervention param exists
   useEffect(() => {
@@ -113,7 +96,7 @@ function TrialsSearchContent() {
       if (currentIntervention) {
         params.set("intervention", currentIntervention);
       }
-      params.set("limit", String(PAGE_SIZE));
+      params.set("limit", String(BROWSE_PAGE_SIZE));
       params.set("offset", String(currentOffset));
 
       // Only add phases param if not all phases are selected
@@ -224,17 +207,6 @@ function TrialsSearchContent() {
       }
     };
   }, [loading, hasMore, loadingMore, loadMore, submittedQuery, intervention]);
-
-  if (initialLoading) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
-        <div className="flex items-center justify-center py-24">
-          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-          <span className="ml-3 text-gray-500">Loading...</span>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
