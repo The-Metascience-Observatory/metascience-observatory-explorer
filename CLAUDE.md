@@ -23,7 +23,15 @@ npm start            # Prod server + cache warming (runs scripts/start-with-cach
 npm run start:no-warm # Prod server without cache warming
 npm run warm-cache   # Manual cache warming (curl /api/cache/warm)
 npm run lint         # ESLint
+npm test             # Vitest (pure logic only — no database needed)
+npm run test:watch   # Vitest in watch mode
 ```
+
+Tests live beside their module as `lib/*.test.ts` and cover **pure functions
+only** — nothing that opens a database, since the SQLite files are ~2 TB and
+absent in CI. [.github/workflows/ci.yml](.github/workflows/ci.yml) runs lint,
+`tsc --noEmit` and the tests on every push; it deliberately does not run
+`next build`, which would need those data files.
 
 If `better-sqlite3` segfaults at startup, run `npm rebuild better-sqlite3` — the prebuilt native binary can go stale after Node/system updates.
 
@@ -41,10 +49,12 @@ All databases live in [data/](data/) and are opened read-only (except `cache.db`
 | `openaire.db` | OpenAIRE Graph — projects/grants, per-paper OA status, linked datasets/software, orgs, and 33.5M first-class OpenAIRE-only papers (`openaire_papers` + `openaire_title_fts`) |
 | `openaire_abstracts.db` | Abstracts for first-class OpenAIRE papers |
 | `openaire_citations.db` | BIP! impact indicators (`openaire_paper_impact`) + packed citation edges (`openaire_refs`, `openaire_cites`) |
+| `identity.db` | ORCID-derived career data — `author_identity`, `author_education`, `author_employment`, plus the `career_age_stats` / `phd_year_stats` / `mobility_flows` rollups behind Trends |
+| `pubmed.db` | PubMed article metadata — `paper_pubtypes` (~62M rows) driving study-design badges, plus `paper_grants`, `paper_databanks`, `article_dates` |
 | `cache.db` | **Writable** — grant (NIH/NSF) and ORCID API response cache with TTL |
 | `analytics.db` | **Writable** — visitor logs and IP geolocation cache |
 
-Optional databases (`abstracts`, `papers_extra`, `mesh`, `retractions`, `openaire`, `openaire_abstracts`, `openaire_citations`) return `null` from their getters if missing — APIs should handle this gracefully.
+Optional databases (`abstracts`, `papers_extra`, `mesh`, `retractions`, `openaire`, `openaire_abstracts`, `openaire_citations`, `identity`, `pubmed`) return `null` from their getters if missing — APIs should handle this gracefully.
 
 **Never `VACUUM` `openaire.db`.** Both `openaire_title_fts` and the citation edge
 keys reference `openaire_papers.rowid`, which a vacuum may renumber. The rowid
@@ -119,7 +129,7 @@ FTS query sanitization pattern (from [app/api/papers/search/route.ts](app/api/pa
 | Entity | Detail page | API detail | Search API |
 |---|---|---|---|
 | Papers | `/papers/[paperid]` | `/api/papers/[paperid]` (+`/abstract`, `/citations`, `/extra`, `/mesh`, `/retraction`, `/lite`) | `/api/papers/search`, `/api/papers/by-doi/[...doi]` |
-| Persons | `/persons/[authorid]` | `/api/persons/[authorid]` (+`/publications`) | `/api/persons/search` |
+| Persons | `/persons/[authorid]` | `/api/persons/[authorid]` (+`/publications`, `/dois` CSV export) | `/api/persons/search` |
 | Journals | `/journals/[sourceid]`, `/journals/scopus/[scopusid]`, `/journals/top` | `/api/journals/[sourceid]` (+`/mesh`, `/publications`), `/api/journals/scopus/[scopusid]`, `/api/journals/top` | `/api/journals/search` |
 | Affiliations | `/affiliations/[institutionid]` | `/api/affiliations/[institutionid]` | `/api/affiliations/search` |
 | Funders | `/funders/[funderid]`, `/funders-map`, `/funders-map/[countryCode]` | `/api/funders/*`, `/api/grants` | `/api/funders/search` |
@@ -128,8 +138,29 @@ FTS query sanitization pattern (from [app/api/papers/search/route.ts](app/api/pa
 | MeSH | `/mesh/[meshui]` | `/api/mesh/[meshui]` (+`/papers`) | — |
 | Retractions | `/retractions`, `/retractions/search` | `/api/retractions`, `/api/retractions/stats` | — |
 | DOI redirect | `/doi/[...doi]` | — | — |
+| Ranked lists | `/papers/top`, `/persons/top`, `/journals/top`, `/affiliations/top` | — | — |
+| Trends | `/trends` | `/api/trends/{mobility,career-age,study-designs}` | — |
+| External enrichment | — | `/api/wikidata`, `/api/tweet-embed` | — |
+
+The four ranked list pages share [components/RankedEntityPage.tsx](components/RankedEntityPage.tsx) and [lib/top-page.ts](lib/top-page.ts) (`parsePage`, `topPageMetadata`); `/journals/top` overrides only its `robots` cap.
 
 **Static counts** in [lib/counts.ts](lib/counts.ts) (`ENTITY_COUNTS`) are displayed in the UI immediately without an API call.
+
+### Where SQL lives — [lib/queries/](lib/queries/)
+
+Measured across the 53 API routes: 10 import `lib/queries/*` and contain no
+inline SQL, 37 inline their SQL and import no query module, and **none mix the
+two**. The boundary is real but narrow:
+
+- **`lib/queries/*` owns entity *detail* reads** — the `/api/{papers,persons,
+  journals,affiliations,funders,fields,mesh,trials}/[id]` routes and the server
+  `page.tsx` components (16 of them) that render the same entity. Every export is
+  wrapped in React `cache()`, so a page and its metadata share one query.
+- **Everything else inlines**: search, sub-resources (`/publications`, `/mesh`,
+  `/citations`, `/extra`, `/lite`), trends, retractions, analytics.
+
+New SQL for an entity detail view belongs in `lib/queries/`; new SQL for a search
+or sub-resource route belongs in the route.
 
 ## Key libs
 
@@ -140,6 +171,11 @@ FTS query sanitization pattern (from [app/api/papers/search/route.ts](app/api/pa
 - [lib/api-utils.ts](lib/api-utils.ts) — `errorResponse`, `parsePagination`, `validateQueryLength`, `fetchWithTimeout`
 - [lib/analytics.ts](lib/analytics.ts) — `logVisitor`, `parseUserAgent`, `sanitizeString`
 - [lib/counts.ts](lib/counts.ts) — `ENTITY_COUNTS` constants
+- [lib/constants.ts](lib/constants.ts) — values shared by server and client (`EDGE_CAP`, `CITATION_PAGE_SIZE`, `BROWSE_PAGE_SIZE`). Imports nothing, so client components can use it
+- [lib/format.ts](lib/format.ts) — display helpers (`cleanDoi`, `getPatentUrl`, `formatPatentId`, `formatDocType`, `formatTrialStatus`, `getLanguageName`, `getRootUrl`)
+- [lib/fts.ts](lib/fts.ts) — `buildFtsQuery`, the single FTS5 query builder for every search route
+- [lib/doi-csv.ts](lib/doi-csv.ts) — `buildDoiCsv`, the single-column DOI CSV behind `/api/persons/[authorid]/dois`
+- [lib/merge-citations.ts](lib/merge-citations.ts) — interleaves the SciSciNet and OpenAIRE citation streams for "Cited By"
 - [lib/scopus.ts](lib/scopus.ts) — Scopus API integration for journal enrichment
 
 ## Middleware — [middleware.ts](middleware.ts)

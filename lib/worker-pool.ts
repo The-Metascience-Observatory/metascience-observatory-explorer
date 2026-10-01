@@ -230,14 +230,6 @@ export async function openaireWorkerQuery<T>(sql: string, ...params: unknown[]):
   return p.query<T>(sql, ...params);
 }
 
-export async function openaireWorkerQueryOne<T>(
-  sql: string,
-  ...params: unknown[]
-): Promise<T | undefined> {
-  const p = getOpenaireWorkerPool();
-  if (!p) return undefined;
-  return p.queryOne<T>(sql, ...params);
-}
 
 // ── Dedicated pools for the other large, optional databases ──────────────────
 // Server components render these on the request path, so their reads must not
@@ -277,8 +269,6 @@ function makeOptionalPool(fileName: string): OptionalPool {
 }
 
 const meshPool = makeOptionalPool('mesh.db');
-const extraPool = makeOptionalPool('papers_extra.db');
-const abstractsPool = makeOptionalPool('abstracts.db');
 const identityPool = makeOptionalPool('identity.db');
 const pubmedPool = makeOptionalPool('pubmed.db');
 
@@ -307,14 +297,6 @@ export const meshWorkerQuery = <T>(sql: string, ...params: unknown[]) =>
 export const meshWorkerQueryOne = <T>(sql: string, ...params: unknown[]) =>
   optionalQueryOne<T>(meshPool, sql, params);
 
-export const extraWorkerQuery = <T>(sql: string, ...params: unknown[]) =>
-  optionalQuery<T>(extraPool, sql, params);
-export const extraWorkerQueryOne = <T>(sql: string, ...params: unknown[]) =>
-  optionalQueryOne<T>(extraPool, sql, params);
-
-export const abstractsWorkerQueryOne = <T>(sql: string, ...params: unknown[]) =>
-  optionalQueryOne<T>(abstractsPool, sql, params);
-
 // identity.db backs both per-author career panels and the Trends rollups. The
 // rollup tables are small, but a mobility drill-down can scan mobility_flows, so
 // it stays off the main thread like the other optional DBs.
@@ -327,5 +309,3 @@ export const identityWorkerQueryOne = <T>(sql: string, ...params: unknown[]) =>
 // paper_pubtypes is ~62M rows, so this stays off the main thread like the others.
 export const pubmedWorkerQuery = <T>(sql: string, ...params: unknown[]) =>
   optionalQuery<T>(pubmedPool, sql, params);
-export const pubmedWorkerQueryOne = <T>(sql: string, ...params: unknown[]) =>
-  optionalQueryOne<T>(pubmedPool, sql, params);

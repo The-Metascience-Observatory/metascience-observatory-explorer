@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
 import Link from "next/link";
 import { ArrowLeft, ChevronRight } from "lucide-react";
+import { formatCompactNumber } from "@/lib/utils";
 
 interface SubField {
   fieldid: string;
@@ -57,12 +58,6 @@ const FIELD_COLORS: Record<string, string> = {
   "C15744967": "#CDDC39",  // Psychology - Lime
   "C144024400": "#E040FB", // Sociology - Purple accent
 };
-
-function formatNumber(num: number): string {
-  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-  if (num >= 1000) return `${(num / 1000).toFixed(0)}K`;
-  return num.toString();
-}
 
 export function FieldBubbleChart({ fields }: FieldBubbleChartProps) {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -250,7 +245,7 @@ export function FieldBubbleChart({ fields }: FieldBubbleChartProps) {
         const r = d.r!;
         // Hide paper count only for very small bubbles
         if (r < 30) return "";
-        return formatNumber(nodeData.paperCount) + " papers";
+        return formatCompactNumber(nodeData.paperCount) + " papers";
       });
 
     // Add "Show subfields" text for level 0 fields (only visible on hover)

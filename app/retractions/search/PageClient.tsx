@@ -6,8 +6,8 @@ import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Search, Loader2, ArrowLeft, AlertTriangle, Filter, ExternalLink } from "lucide-react";
+import { BROWSE_PAGE_SIZE } from "@/lib/constants";
 
-const PAGE_SIZE = 50;
 
 // Retraction nature options
 const RETRACTION_NATURES = [
@@ -107,7 +107,7 @@ function RetractionsSearchContent() {
   const buildUrl = useCallback((searchQuery: string | null, currentOffset: number) => {
     const params = new URLSearchParams();
     if (searchQuery) params.set("q", searchQuery);
-    params.set("limit", String(PAGE_SIZE));
+    params.set("limit", String(BROWSE_PAGE_SIZE));
     params.set("offset", String(currentOffset));
     if (selectedNature) params.set("nature", selectedNature);
     if (selectedReason) params.set("reason", selectedReason);

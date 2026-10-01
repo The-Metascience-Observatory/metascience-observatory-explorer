@@ -35,23 +35,6 @@ export function breadcrumbLd(trail: Array<[label: string, path: string]>) {
   };
 }
 
-export function webSiteLd() {
-  return {
-    "@context": CONTEXT,
-    "@type": "WebSite",
-    name: SITE_NAME,
-    url: SITE_URL,
-    potentialAction: {
-      "@type": "SearchAction",
-      target: {
-        "@type": "EntryPoint",
-        urlTemplate: absoluteUrl("/papers?q={search_term_string}"),
-      },
-      "query-input": "required name=search_term_string",
-    },
-  };
-}
-
 export interface MeshLdInput {
   meshUi: string;
   meshName: string;

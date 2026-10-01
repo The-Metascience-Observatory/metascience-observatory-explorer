@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb, isDatabaseAvailable } from "@/lib/db";
 import { errorResponse, parsePagination } from "@/lib/api-utils";
 import type { PaperCitation } from "@/lib/types";
+import { CITATION_PAGE_SIZE } from "@/lib/constants";
 
-const PAGE_SIZE = 100;
 
 export async function GET(
   request: NextRequest,
@@ -11,7 +11,7 @@ export async function GET(
 ) {
   try {
     const { paperid } = await params;
-    const { offset, limit } = parsePagination(request.nextUrl.searchParams, { limit: PAGE_SIZE });
+    const { offset, limit } = parsePagination(request.nextUrl.searchParams, { limit: CITATION_PAGE_SIZE });
 
     if (!isDatabaseAvailable()) {
       return NextResponse.json(

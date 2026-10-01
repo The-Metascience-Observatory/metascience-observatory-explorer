@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, parsePagination } from "@/lib/api-utils";
 import { citationsAvailable, keyForPaperId, loadNeighborPage } from "@/lib/openaire-citations";
 import type { OpenaireCitationsResponse } from "@/lib/types";
+import { CITATION_PAGE_SIZE } from "@/lib/constants";
 
-const PAGE_SIZE = 100;
 
 /**
  * Citations of a SciSciNet paper found in the OpenAIRE Graph.
@@ -18,7 +18,7 @@ export async function GET(
   { params }: { params: Promise<{ paperid: string }> }
 ) {
   const { paperid } = await params;
-  const { offset, limit } = parsePagination(request.nextUrl.searchParams, { limit: PAGE_SIZE });
+  const { offset, limit } = parsePagination(request.nextUrl.searchParams, { limit: CITATION_PAGE_SIZE });
 
   const empty = (unavailable?: boolean): OpenaireCitationsResponse => ({
     citations: [],

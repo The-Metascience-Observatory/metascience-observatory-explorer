@@ -34,42 +34,9 @@ import {
   FileText,
   Newspaper,
 } from "lucide-react";
+import { cleanDoi, formatDocType, formatPatentId, getLanguageName, getPatentUrl } from "@/lib/format";
+import { EDGE_CAP } from "@/lib/constants";
 
-// Each citation source is independently capped: journals.db is truncated here,
-// and the OpenAIRE edge blobs are capped at build time (EDGE_CAP in
-// lib/openaire-citations.ts). Keep the two numbers in step.
-const MAX_CITATIONS_PER_SOURCE = 1000;
-
-// Helper to clean DOI - remove any existing https://doi.org/ prefix
-function cleanDoi(doi: string | null): string | null {
-  if (!doi) return null;
-  // Remove any existing URL prefix
-  return doi.replace(/^https?:\/\/doi\.org\//i, '');
-}
-
-// Convert patent ID to Google Patents URL
-// Patent IDs are like "us-11426570-b2" -> "US11426570B2"
-function getPatentUrl(patentId: string): string {
-  // Convert from "us-11426570-b2" format to "US11426570B2"
-  const normalized = patentId.toUpperCase().replace(/-/g, '');
-  return `https://patents.google.com/patent/${normalized}`;
-}
-
-// Format patent ID for display (e.g., "us-11426570-b2" -> "US 11,426,570 B2")
-function formatPatentId(patentId: string): string {
-  const parts = patentId.split('-');
-  if (parts.length >= 2) {
-    const country = parts[0].toUpperCase();
-    const number = parts[1];
-    const kind = parts[2]?.toUpperCase() || '';
-    // Format number with commas for US patents
-    const formattedNumber = country === 'US' && /^\d+$/.test(number)
-      ? parseInt(number, 10).toLocaleString()
-      : number;
-    return `${country} ${formattedNumber}${kind ? ' ' + kind : ''}`;
-  }
-  return patentId.toUpperCase();
-}
 
 // Escape special LaTeX characters in BibTeX fields
 function escapeBibtex(text: string): string {
@@ -96,77 +63,6 @@ function generateCiteKey(authors: { display_name: string | null }[], year: numbe
 // both environments.
 function sanitizeHtml(html: string): string {
   return sanitizeInlineHtml(html);
-}
-
-// Language code to human-readable name mapping
-const LANGUAGE_NAMES: Record<string, string> = {
-  en: "English",
-  zh: "Chinese",
-  es: "Spanish",
-  de: "German",
-  fr: "French",
-  ja: "Japanese",
-  pt: "Portuguese",
-  ru: "Russian",
-  ko: "Korean",
-  it: "Italian",
-  nl: "Dutch",
-  pl: "Polish",
-  tr: "Turkish",
-  ar: "Arabic",
-  cs: "Czech",
-  sv: "Swedish",
-  da: "Danish",
-  fi: "Finnish",
-  no: "Norwegian",
-  hu: "Hungarian",
-  el: "Greek",
-  he: "Hebrew",
-  th: "Thai",
-  vi: "Vietnamese",
-  uk: "Ukrainian",
-  id: "Indonesian",
-  ms: "Malay",
-  ro: "Romanian",
-  sk: "Slovak",
-  bg: "Bulgarian",
-  hr: "Croatian",
-  sr: "Serbian",
-  sl: "Slovenian",
-  et: "Estonian",
-  lv: "Latvian",
-  lt: "Lithuanian",
-  fa: "Persian",
-  hi: "Hindi",
-  bn: "Bengali",
-  ta: "Tamil",
-  te: "Telugu",
-  mr: "Marathi",
-  gu: "Gujarati",
-  kn: "Kannada",
-  ml: "Malayalam",
-  pa: "Punjabi",
-  ur: "Urdu",
-  ca: "Catalan",
-  eu: "Basque",
-  gl: "Galician",
-  af: "Afrikaans",
-  sw: "Swahili",
-  la: "Latin",
-};
-
-function getLanguageName(code: string | null): string {
-  if (!code) return "Unknown";
-  return LANGUAGE_NAMES[code.toLowerCase()] || code.toUpperCase();
-}
-
-// Format document type for display
-function formatDocType(docType: string | null): string {
-  if (!docType) return "Unknown";
-  // Convert snake_case or kebab-case to Title Case
-  return docType
-    .replace(/[-_]/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 /**
@@ -268,7 +164,7 @@ export default function PaperDetailClient({
     const total = initialData.citationsTotal || initialData.citations?.length || 0;
     setCitationsTotal(total);
     setHasMoreCitations(
-      (initialData.citations?.length || 0) < Math.min(total, MAX_CITATIONS_PER_SOURCE)
+      (initialData.citations?.length || 0) < Math.min(total, EDGE_CAP)
     );
   }, [initialData]);
 
@@ -376,7 +272,7 @@ export default function PaperDetailClient({
           setHasMoreOpenaireCitations(
             batch.length > 0 &&
               Boolean(json.hasMore) &&
-              batch.length < MAX_CITATIONS_PER_SOURCE
+              batch.length < EDGE_CAP
           );
         }
       } catch (e) {
@@ -424,7 +320,7 @@ export default function PaperDetailClient({
     setCitationsLoading(true);
     try {
       const offset = displayedCitations.length;
-      const remaining = Math.min(MAX_CITATIONS_PER_SOURCE, citationsTotal) - offset;
+      const remaining = Math.min(EDGE_CAP, citationsTotal) - offset;
       if (remaining <= 0) {
         setHasMoreCitations(false);
         return;
@@ -441,7 +337,7 @@ export default function PaperDetailClient({
         setHasMoreCitations(
           batch.length > 0 &&
             Boolean(data.hasMore) &&
-            offset + batch.length < MAX_CITATIONS_PER_SOURCE
+            offset + batch.length < EDGE_CAP
         );
       }
     } catch (e) {
@@ -458,7 +354,7 @@ export default function PaperDetailClient({
     setOpenaireCitationsLoading(true);
     try {
       const offset = openaireCitations.length;
-      const remaining = MAX_CITATIONS_PER_SOURCE - offset;
+      const remaining = EDGE_CAP - offset;
       if (remaining <= 0) {
         setHasMoreOpenaireCitations(false);
         return;
@@ -473,7 +369,7 @@ export default function PaperDetailClient({
         setHasMoreOpenaireCitations(
           batch.length > 0 &&
             Boolean(json.hasMore) &&
-            offset + batch.length < MAX_CITATIONS_PER_SOURCE
+            offset + batch.length < EDGE_CAP
         );
       } else {
         setHasMoreOpenaireCitations(false);
@@ -1226,9 +1122,9 @@ export default function PaperDetailClient({
           containerRef={citationsContainerRef}
           sentinelRef={citationsEndRef}
           maxNote={
-            displayedCitations.length >= MAX_CITATIONS_PER_SOURCE ||
-            openaireCitations.length >= MAX_CITATIONS_PER_SOURCE
-              ? `Capped at the ${formatNumber(MAX_CITATIONS_PER_SOURCE)} most-cited citing papers per source`
+            displayedCitations.length >= EDGE_CAP ||
+            openaireCitations.length >= EDGE_CAP
+              ? `Capped at the ${formatNumber(EDGE_CAP)} most-cited citing papers per source`
               : undefined
           }
           footnote={

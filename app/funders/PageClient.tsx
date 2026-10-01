@@ -33,23 +33,6 @@ function FundersSearchContent() {
   const [results, setResults] = useState<FunderSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [initialLoading, setInitialLoading] = useState(true);
-
-  // Load total funder count on mount
-  useEffect(() => {
-    async function loadCount() {
-      try {
-        const res = await fetch("/api/funders/search");
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        await res.json();
-      } catch (e) {
-        console.error("Failed to load funder count:", e);
-      } finally {
-        setInitialLoading(false);
-      }
-    }
-    loadCount();
-  }, []);
 
   // Run initial search if query param exists
   useEffect(() => {
@@ -97,17 +80,6 @@ function FundersSearchContent() {
       performSearch(query);
     }
   };
-
-  if (initialLoading) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
-        <div className="flex items-center justify-center py-24">
-          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-          <span className="ml-3 text-gray-500">Loading...</span>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">

@@ -4,25 +4,9 @@ import { errorResponse, validateQueryLength } from "@/lib/api-utils";
 import type { JournalSearchItem } from "@/lib/types";
 import { searchCaches, generateCacheKey } from "@/lib/search-cache";
 import { workerQuery } from "@/lib/worker-pool";
+import { buildFtsQuery } from "@/lib/fts";
 
 const STOP_WORDS = new Set(['of', 'the', 'and', 'in', 'for', 'on', 'to', 'a', 'an', 'at', 'by', 'or', 'is', 'it']);
-
-function sanitizeFtsWord(word: string): string {
-  return word.replace(/[^a-zA-Z0-9]/g, '').trim();
-}
-
-function buildFtsQuery(query: string): string {
-  const words = query.trim().toLowerCase().split(/\s+/).filter(w => w.length > 0);
-  if (words.length === 0) return '';
-  return words.flatMap(word => {
-    const parts = word.split('-').filter(p => p.length > 0);
-    return parts.map(part => {
-      const sanitized = sanitizeFtsWord(part);
-      if (!sanitized || sanitized.length < 2) return '';
-      return `"${sanitized}"*`;
-    });
-  }).filter(w => w.length > 0).join(' ');
-}
 
 /**
  * Extract significant search words from query (skip stop words and short words).

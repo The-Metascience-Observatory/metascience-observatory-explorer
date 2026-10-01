@@ -11,8 +11,6 @@ let meshDb: Database.Database | null = null;
 let openaireDb: Database.Database | null = null;
 let openaireAbstractsDb: Database.Database | null = null;
 let openaireCitationsDb: Database.Database | null = null;
-let identityDb: Database.Database | null = null;
-let pubmedDb: Database.Database | null = null;
 
 export function getDb(): Database.Database {
   if (!db) {
@@ -69,27 +67,6 @@ const GRANT_CACHE_TTL_MS = 365 * 24 * 60 * 60 * 1000;
 const ORCID_CACHE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 
 // Get cached grant details
-export function getCachedGrant(awardId: string): { data: unknown; cached_at: number } | null {
-  try {
-    const db = getCacheDb();
-    const row = db.prepare(
-      'SELECT response_json, cached_at FROM grant_cache WHERE award_id = ?'
-    ).get(awardId) as { response_json: string; cached_at: number } | undefined;
-
-    if (!row) return null;
-
-    // Check if cache is expired
-    if (Date.now() - row.cached_at > GRANT_CACHE_TTL_MS) {
-      // Delete expired entry
-      db.prepare('DELETE FROM grant_cache WHERE award_id = ?').run(awardId);
-      return null;
-    }
-
-    return { data: JSON.parse(row.response_json), cached_at: row.cached_at };
-  } catch {
-    return null;
-  }
-}
 
 // Cache grant details
 export function setCachedGrant(awardId: string, funderType: string, data: unknown): void {
@@ -197,33 +174,9 @@ export function getMeshDb(): Database.Database | null {
 
 // Get PubMed database (publication types, grant links, databank accessions
 // from the MEDLINE annual baseline). Optional, like mesh/retractions.
-export function getPubmedDb(): Database.Database | null {
-  if (pubmedDb === null) {
-    try {
-      const dbPath = path.join(process.cwd(), "data", "pubmed.db");
-      pubmedDb = new Database(dbPath, { readonly: true, fileMustExist: true });
-    } catch {
-      // pubmed.db may not exist - return null
-      return null;
-    }
-  }
-  return pubmedDb;
-}
 
 // Get identity database (ORCID-derived career trajectories: employment,
 // education, mobility and career-age rollups). Optional, like mesh/retractions.
-export function getIdentityDb(): Database.Database | null {
-  if (identityDb === null) {
-    try {
-      const dbPath = path.join(process.cwd(), "data", "identity.db");
-      identityDb = new Database(dbPath, { readonly: true, fileMustExist: true });
-    } catch {
-      // identity.db may not exist - return null
-      return null;
-    }
-  }
-  return identityDb;
-}
 
 // Get OpenAIRE Graph database (projects/grants, OA status, linked products, orgs)
 export function getOpenaireDb(): Database.Database | null {
@@ -388,4 +341,22 @@ export function getAnalyticsDb(): Database.Database {
     }
   }
   return analyticsDb;
+}
+
+/**
+ * Whether a table exists in the given database.
+ *
+ * Optional databases are frequently missing a table an older build expected, so
+ * callers probe before querying. Accepts null so a missing database is simply
+ * "no table" rather than a separate branch at every call site.
+ */
+export function hasTable(db: Database.Database | null, name: string): boolean {
+  if (!db) return false;
+  try {
+    return !!db
+      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?")
+      .get(name);
+  } catch {
+    return false;
+  }
 }

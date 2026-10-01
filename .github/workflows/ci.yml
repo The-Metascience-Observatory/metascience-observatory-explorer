@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # better-sqlite3 is a native module. Nothing in the test suite opens a
+      # database, but `npm ci` still builds it, so a prebuilt binary keeps the
+      # job fast and avoids needing build tooling.
+      - run: npm ci
+
+      - run: npm run lint
+
+      - run: npx tsc --noEmit
+
+      - run: npm test
+
+      # Deliberately no `next build`: it prerenders API routes that open the
+      # SQLite files in data/, which are ~2 TB and are not in the repo.

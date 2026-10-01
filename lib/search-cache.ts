@@ -173,34 +173,21 @@ export function generateCacheKey(query: string, params?: Record<string, string |
   return `${baseKey}::${paramStr}`;
 }
 
-// Cleanup expired entries every 5 minutes
+// Cleanup expired entries every 5 minutes.
+// Iterate searchCaches rather than listing the caches: the hand-written list
+// silently omitted `trends` when it was added, so its entries were never swept.
 setInterval(() => {
-  paperSearchCache.cleanup();
-  personSearchCache.cleanup();
-  journalSearchCache.cleanup();
-  affiliationSearchCache.cleanup();
-  funderSearchCache.cleanup();
-  trialSearchCache.cleanup();
+  for (const cache of Object.values(searchCaches)) cache.cleanup();
 }, 5 * 60 * 1000);
 
 // API endpoint to get cache stats (for monitoring)
-export function getAllCacheStats() {
-  return {
-    papers: paperSearchCache.getStats(),
-    persons: personSearchCache.getStats(),
-    journals: journalSearchCache.getStats(),
-    affiliations: affiliationSearchCache.getStats(),
-    funders: funderSearchCache.getStats(),
-    trials: trialSearchCache.getStats()
-  };
+export function getAllCacheStats(): Record<string, ReturnType<LRUCache<unknown>["getStats"]>> {
+  return Object.fromEntries(
+    Object.entries(searchCaches).map(([name, cache]) => [name, cache.getStats()])
+  );
 }
 
 // Clear all caches (useful for debugging or manual refresh)
 export function clearAllCaches(): void {
-  paperSearchCache.clear();
-  personSearchCache.clear();
-  journalSearchCache.clear();
-  affiliationSearchCache.clear();
-  funderSearchCache.clear();
-  trialSearchCache.clear();
+  for (const cache of Object.values(searchCaches)) cache.clear();
 }

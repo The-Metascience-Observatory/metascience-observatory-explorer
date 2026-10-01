@@ -24,6 +24,7 @@ import {
   Building2,
   HelpCircle,
 } from "lucide-react";
+import { formatTrialStatus } from "@/lib/format";
 
 // Tooltips explaining paper reference types
 const REFERENCE_TYPE_TOOLTIPS = {
@@ -32,11 +33,6 @@ const REFERENCE_TYPE_TOOLTIPS = {
   derived: "Publications automatically linked by ClinicalTrials.gov by matching PubMed metadata with the trial registration.",
   unknown: "Publications linked to this trial without a specified reference type in the ClinicalTrials.gov data.",
 };
-
-function formatStatus(status: string | null): string {
-  if (!status) return "Unknown";
-  return status.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
-}
 
 /**
  * Interactive shell for the trial page.
@@ -148,7 +144,7 @@ export default function TrialDetailClient({ data }: { data: TrialDetails }) {
             {summary.status && (
               <div className="flex items-center gap-2 mb-4 text-sm">
                 <span className="text-gray-500 dark:text-gray-400">
-                  Status: {formatStatus(summary.status)} (as of 12-23-2025)
+                  Status: {formatTrialStatus(summary.status)} (as of 12-23-2025)
                 </span>
               </div>
             )}

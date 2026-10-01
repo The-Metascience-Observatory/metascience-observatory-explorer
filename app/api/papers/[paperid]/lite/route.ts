@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPapersExtraDb, getDb } from "@/lib/db";
+import { getDb, getPapersExtraDb, hasTable } from "@/lib/db";
 import { errorResponse } from "@/lib/api-utils";
 
 interface PaperCoreRow {
@@ -33,22 +33,6 @@ interface PaperSourceRow {
   is_oa: number | null;
   version: string | null;
   license: string | null;
-}
-
-// Helper to check if a table exists
-function tableExists(
-  db: ReturnType<typeof getPapersExtraDb>,
-  tableName: string
-): boolean {
-  if (!db) return false;
-  try {
-    const result = db
-      .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`)
-      .get(tableName);
-    return !!result;
-  } catch {
-    return false;
-  }
 }
 
 // Get field names from main db
@@ -117,7 +101,7 @@ export async function GET(
     }
 
     // Check if paper_core table exists (indicates lite data is available)
-    if (!tableExists(db, "paper_core")) {
+    if (!hasTable(db, "paper_core")) {
       return NextResponse.json(
         { error: "Lite paper data not processed" },
         { status: 404 }
@@ -135,7 +119,7 @@ export async function GET(
 
     // Get authors
     let authors: PaperAuthorRow[] = [];
-    if (tableExists(db, "paper_authors")) {
+    if (hasTable(db, "paper_authors")) {
       authors = db
         .prepare(
           `SELECT authorid, display_name, author_position, institutionid, raw_affiliation
@@ -154,7 +138,7 @@ export async function GET(
 
     // Get fields
     let fields: PaperFieldRow[] = [];
-    if (tableExists(db, "paper_fields")) {
+    if (hasTable(db, "paper_fields")) {
       fields = db
         .prepare(
           `SELECT fieldid, score FROM paper_fields WHERE paperid = ? ORDER BY score DESC LIMIT 10`
@@ -164,7 +148,7 @@ export async function GET(
 
     // Get source
     let source: PaperSourceRow | undefined;
-    if (tableExists(db, "paper_sources")) {
+    if (hasTable(db, "paper_sources")) {
       source = db
         .prepare(`SELECT * FROM paper_sources WHERE paperid = ?`)
         .get(paperid) as PaperSourceRow | undefined;

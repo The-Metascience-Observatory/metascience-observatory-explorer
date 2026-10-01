@@ -8,8 +8,8 @@ import { Card } from "@/components/ui/card";
 import { PersonCard } from "@/components/PersonCard";
 import type { PersonSearchItem } from "@/lib/types";
 import { Search, Loader2, ArrowLeft, Users } from "lucide-react";
+import { BROWSE_PAGE_SIZE } from "@/lib/constants";
 
-const PAGE_SIZE = 50;
 
 interface SearchResponse {
   results: PersonSearchItem[];
@@ -35,26 +35,9 @@ function PersonsSearchContent() {
   const [hasMore, setHasMore] = useState(false);
   const [offset, setOffset] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [initialLoading, setInitialLoading] = useState(true);
 
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
-
-  // Load total person count on mount
-  useEffect(() => {
-    async function loadCount() {
-      try {
-        const res = await fetch("/api/persons/search");
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        await res.json();
-      } catch (e) {
-        console.error("Failed to load person count:", e);
-      } finally {
-        setInitialLoading(false);
-      }
-    }
-    loadCount();
-  }, []);
 
   // Run initial search if query param exists
   useEffect(() => {
@@ -82,7 +65,7 @@ function PersonsSearchContent() {
     try {
       const currentOffset = isLoadMore ? offset : 0;
       const res = await fetch(
-        `/api/persons/search?q=${encodeURIComponent(searchQuery)}&limit=${PAGE_SIZE}&offset=${currentOffset}`
+        `/api/persons/search?q=${encodeURIComponent(searchQuery)}&limit=${BROWSE_PAGE_SIZE}&offset=${currentOffset}`
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: SearchResponse = await res.json();
@@ -152,17 +135,6 @@ function PersonsSearchContent() {
       }
     };
   }, [loading, hasMore, loadingMore, loadMore, submittedQuery]);
-
-  if (initialLoading) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
-        <div className="flex items-center justify-center py-24">
-          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-          <span className="ml-3 text-gray-500">Loading...</span>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">

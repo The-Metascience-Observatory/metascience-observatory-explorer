@@ -10,6 +10,7 @@ import { FieldBadges } from "@/components/FieldBadges";
 import type { JournalDetails } from "@/lib/types";
 import { formatNumber } from "@/lib/utils";
 import { ArrowLeft, Info, AlertTriangle, ExternalLink } from "lucide-react";
+import { getRootUrl } from "@/lib/format";
 
 // Format ISSN which may be a JSON array string or a plain string
 function formatIssn(issn: string | null): string | null {
@@ -22,17 +23,6 @@ function formatIssn(issn: string | null): string | null {
     return String(parsed);
   } catch {
     return issn;
-  }
-}
-
-// Extract root URL from a full URL (e.g., "http://www.sciencemag.org/foo" -> "sciencemag.org")
-function getRootUrl(url: string | null): string | null {
-  if (!url) return null;
-  try {
-    const parsed = new URL(url);
-    return parsed.hostname.replace(/^www\./, '');
-  } catch {
-    return url;
   }
 }
 

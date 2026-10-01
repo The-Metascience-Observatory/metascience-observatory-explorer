@@ -7,9 +7,9 @@ import {
   loadNeighborPage,
 } from "@/lib/openaire-citations";
 import type { OpenaireCitationsResponse } from "@/lib/types";
+import { CITATION_PAGE_SIZE } from "@/lib/constants";
 
 const ID_RE = /^OA[0-9a-f]{32}$/;
-const PAGE_SIZE = 100;
 
 /** Papers citing this OpenAIRE paper, from the OpenAIRE Graph Cites relations. */
 export async function GET(
@@ -17,7 +17,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { offset, limit } = parsePagination(request.nextUrl.searchParams, { limit: PAGE_SIZE });
+  const { offset, limit } = parsePagination(request.nextUrl.searchParams, { limit: CITATION_PAGE_SIZE });
 
   const empty = (unavailable?: boolean): OpenaireCitationsResponse => ({
     citations: [],
