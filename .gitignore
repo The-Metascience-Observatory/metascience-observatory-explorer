@@ -94,3 +94,11 @@ scripts/__pycache__/
 # runtime logs (a single server log reached 1.76 GB)
 /logs/
 /server.log
+
+# Bulk inputs and vendored binaries, purged from history 2026-10-14 (they had
+# grown .git to 353 MB). Keep them out of the repo; copies live outside it.
+# scripts/import_journal_enrichment.py and import_scopus_only_journals.py take
+# the Scopus workbook as a --path argument, so restore it locally to run them.
+journals_data/*.xlsx
+*.duckdb
+*.deb
