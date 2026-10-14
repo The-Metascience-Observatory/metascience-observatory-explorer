@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { searchCaches, generateCacheKey } from "@/lib/search-cache";
 import { workerQuery, openaireWorkerQuery, getOpenaireWorkerPool } from "@/lib/worker-pool";
 import { getOpenaireCitationsDb } from "@/lib/db";
-import { errorResponse } from "@/lib/api-utils";
 import { isLocalRequest } from "@/lib/local-request";
 
 /**
@@ -116,17 +115,32 @@ async function warmOpenairePapers(
  * do not stop concurrent callers from all missing and all executing.
  */
 
-let inFlight: Promise<NextResponse> | null = null;
+interface WarmOutcome {
+  ok: boolean;
+  body: Record<string, unknown>;
+}
+
+/**
+ * Shared across concurrent callers so only one warm runs at a time.
+ *
+ * It resolves to plain data, NOT a NextResponse: a response body is a
+ * ReadableStream that can be consumed only once, so handing the same response
+ * object to a second caller fails with "Invalid state: The ReadableStream is
+ * locked". Each caller builds its own response from this data instead.
+ */
+let inFlight: Promise<WarmOutcome> | null = null;
 
 export async function POST(request: Request) {
   if (!isLocalRequest(request.headers)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  if (inFlight) return inFlight;
-  inFlight = warmCaches().finally(() => {
-    inFlight = null;
-  });
-  return inFlight;
+  if (!inFlight) {
+    inFlight = warmCaches().finally(() => {
+      inFlight = null;
+    });
+  }
+  const outcome = await inFlight;
+  return NextResponse.json(outcome.body, { status: outcome.ok ? 200 : 500 });
 }
 
 // scripts/start-with-cache.sh warms via fetch() with no method, i.e. GET, so the
@@ -136,7 +150,7 @@ export async function GET(request: Request) {
   return POST(request);
 }
 
-async function warmCaches(): Promise<NextResponse> {
+async function warmCaches(): Promise<WarmOutcome> {
   const startTime = Date.now();
   const results = {
     papers: { cached: 0, errors: 0 },
@@ -281,17 +295,21 @@ async function warmCaches(): Promise<NextResponse> {
 
     const duration = Date.now() - startTime;
 
-    return NextResponse.json({
-      success: true,
-      duration: `${duration}ms`,
-      results,
-      message: "Cache warming complete"
-    });
-
+    return {
+      ok: true,
+      body: {
+        success: true,
+        duration: `${duration}ms`,
+        results,
+        message: "Cache warming complete",
+      },
+    };
   } catch (error) {
-    // Was returning error.message verbatim, which leaks table names and
-    // absolute container paths out of SQLite errors.
-    return errorResponse(error, "cache/warm");
+    // Logged server-side with the full stack; the client gets nothing
+    // specific. This used to return error.message verbatim, which leaked
+    // table names and absolute container paths out of SQLite errors.
+    console.error("[cache/warm] failed:", error);
+    return { ok: false, body: { success: false, error: "Cache warming failed" } };
   }
 }
 
