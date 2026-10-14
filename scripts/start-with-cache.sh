@@ -48,8 +48,17 @@ if [ ! -x "$NEXT_BIN" ]; then
   NEXT_BIN="$(command -v next)" || { echo "FATAL: cannot find the next binary"; exit 1; }
 fi
 
-echo "Starting Next.js server on port $PORT..."
-setsid "$NEXT_BIN" start -p "$PORT" &
+# Bind to loopback. cloudflared's ingress targets http://localhost:$PORT (see
+# DOCKER-SETUP.md), so the tunnel is unaffected, but the origin stops being
+# reachable from the LAN. That matters because middleware.ts derives the client
+# IP from cf-connecting-ip, which anyone able to reach the origin directly can
+# set freely — defeating the rate limits and the blocklist in one header.
+#
+# Override with HOST=0.0.0.0 to reach the dev box from another machine.
+HOST=${HOST:-127.0.0.1}
+
+echo "Starting Next.js server on $HOST:$PORT..."
+setsid "$NEXT_BIN" start -p "$PORT" -H "$HOST" &
 SERVER_PID=$!
 
 # Wait for server to be ready (using node fetch instead of curl)

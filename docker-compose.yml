@@ -5,7 +5,12 @@ services:
     restart: unless-stopped
     # Use userland-proxy=false mode via extra_hosts
     ports:
-      - "3000:3000"
+      # Published on loopback only: cloudflared runs on the host and connects to
+      # localhost, so the tunnel still works, but the origin is not reachable
+      # from the LAN. Do NOT "fix" this by changing the container's own bind —
+      # Dockerfile sets HOSTNAME=0.0.0.0 deliberately, because 127.0.0.1 inside
+      # the container is the container's loopback, not the host's.
+      - "127.0.0.1:3000:3000"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
