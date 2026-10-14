@@ -8,9 +8,10 @@ Citation: Lin, Z., Yin, Y., Liu, L. et al. *SciSciNet: A large-scale open data l
 
 ## Tech stack
 
-- **Framework**: Next.js 15 (App Router) + React 18 + TypeScript 5 (strict)
+- **Framework**: Next.js 16 (App Router) + React 18 + TypeScript 5 (strict)
 - **Database**: SQLite via `better-sqlite3` (readonly, memory-mapped)
-- **Styling**: Tailwind CSS
+- **Styling**: Tailwind CSS 4 — configured in `app/globals.css` via `@theme`;
+  there is no `tailwind.config.ts` (v4 is CSS-first)
 - **Viz**: Recharts, D3, react-simple-maps
 - **Runtime**: Node.js, Linux (native module)
 
