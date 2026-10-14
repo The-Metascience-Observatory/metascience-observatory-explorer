@@ -675,7 +675,7 @@ export default function PaperDetailClient({
             {/* Fallback badge from OpenAlex if no Retraction Watch data but marked retracted */}
             {!retractionLoading && !retractionData && !extraLoading && metadata?.isRetracted && (
               <div className="flex flex-wrap gap-2 mb-4">
-                <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 rounded">
+                <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 rounded-sm">
                   ⚠️ Retracted
                 </span>
               </div>
@@ -728,7 +728,7 @@ export default function PaperDetailClient({
               (!openaireLoading && openaireData?.openaire)) && (
               <div className="flex flex-wrap gap-2 mb-4">
                 {!extraLoading && metadata?.isParatext && (
-                  <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 rounded">
+                  <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 rounded-sm">
                     Paratext
                   </span>
                 )}
@@ -913,7 +913,7 @@ export default function PaperDetailClient({
                       href={`https://pubmed.ncbi.nlm.nih.gov/${pubmed.pmid}/`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded hover:bg-blue-200 dark:hover:bg-blue-800"
+                      className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded-sm hover:bg-blue-200 dark:hover:bg-blue-800"
                     >
                       PMID: {pubmed.pmid}
                       <ExternalLink className="h-3 w-3" />
@@ -924,7 +924,7 @@ export default function PaperDetailClient({
                       href={`https://www.ncbi.nlm.nih.gov/pmc/articles/PMC${pubmed.pmcid}/`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded hover:bg-green-200 dark:hover:bg-green-800"
+                      className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded-sm hover:bg-green-200 dark:hover:bg-green-800"
                     >
                       PMC{pubmed.pmcid}
                       <ExternalLink className="h-3 w-3" />
@@ -956,7 +956,7 @@ export default function PaperDetailClient({
                           <span className="text-sm text-blue-600 truncate">
                             {domain}
                           </span>
-                          <ExternalLink className="h-3 w-3 text-gray-400 flex-shrink-0" />
+                          <ExternalLink className="h-3 w-3 text-gray-400 shrink-0" />
                         </div>
                         {item.timestamp && (
                           <div className="text-xs text-gray-500 mt-1">
@@ -992,20 +992,20 @@ export default function PaperDetailClient({
                   <div className="flex gap-2 mb-2">
                     <button
                       onClick={handleCopyBibtex}
-                      className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                      className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 rounded-sm hover:bg-gray-200 dark:hover:bg-gray-700"
                     >
                       {copied ? <Check className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
                       {copied ? 'Copied!' : 'Copy'}
                     </button>
                     <button
                       onClick={handleDownloadBibtex}
-                      className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                      className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 rounded-sm hover:bg-gray-200 dark:hover:bg-gray-700"
                     >
                       <Download className="h-3 w-3" />
                       Download .bib
                     </button>
                   </div>
-                  <pre className="text-xs bg-gray-50 dark:bg-gray-800 p-2 rounded overflow-x-auto whitespace-pre-wrap break-all">
+                  <pre className="text-xs bg-gray-50 dark:bg-gray-800 p-2 rounded-sm overflow-x-auto whitespace-pre-wrap break-all">
                     {generateBibtex()}
                   </pre>
                 </div>
@@ -1057,10 +1057,10 @@ export default function PaperDetailClient({
               </CardHeader>
               <CardContent>
                 <div className="animate-pulse">
-                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-full mb-2"></div>
-                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-full mb-2"></div>
-                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-5/6 mb-2"></div>
-                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-4/6"></div>
+                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-sm w-full mb-2"></div>
+                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-sm w-full mb-2"></div>
+                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-sm w-5/6 mb-2"></div>
+                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-sm w-4/6"></div>
                 </div>
               </CardContent>
             </Card>
@@ -1070,7 +1070,7 @@ export default function PaperDetailClient({
                 <CardTitle className="text-base flex items-center gap-2">
                   Abstract
                   {abstractLanguage && abstractLanguage !== "en" && (
-                    <span className="px-1.5 py-0.5 text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 rounded font-normal">
+                    <span className="px-1.5 py-0.5 text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 rounded-sm font-normal">
                       {abstractLanguage.toUpperCase()}
                     </span>
                   )}
@@ -1079,7 +1079,7 @@ export default function PaperDetailClient({
               <CardContent>
                 <p
                   ref={abstractRef}
-                  className={`text-sm text-gray-700 dark:text-gray-300 ${showFullAbstract ? "" : "line-clamp-[15]"}`}
+                  className={`text-sm text-gray-700 dark:text-gray-300 ${showFullAbstract ? "" : "line-clamp-15"}`}
                 >
                   {abstract}
                 </p>

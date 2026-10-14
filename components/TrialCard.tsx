@@ -44,7 +44,7 @@ export const TrialCard = memo(function TrialCard({ trial, compact = false, hideS
                 {trial.title || trial.nct_id}
               </h3>
               {!hideStatus && trial.status && (
-                <span className={`px-1.5 py-0.5 text-xs rounded flex-shrink-0 ${getStatusColor(trial.status)}`}>
+                <span className={`px-1.5 py-0.5 text-xs rounded-sm shrink-0 ${getStatusColor(trial.status)}`}>
                   {formatTrialStatus(trial.status)}
                 </span>
               )}
@@ -67,7 +67,7 @@ export const TrialCard = memo(function TrialCard({ trial, compact = false, hideS
               </div>
             )}
           </div>
-          <ExternalLink className={`${compact ? "h-3 w-3" : "h-4 w-4"} text-gray-400 flex-shrink-0`} />
+          <ExternalLink className={`${compact ? "h-3 w-3" : "h-4 w-4"} text-gray-400 shrink-0`} />
         </div>
       </Card>
     </Link>

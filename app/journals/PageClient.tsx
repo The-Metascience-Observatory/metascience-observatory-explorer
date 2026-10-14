@@ -172,7 +172,7 @@ function JournalsSearchContent() {
                       <span>{journal.publisher}</span>
                     )}
                     {journal.issn && (
-                      <span className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded">
+                      <span className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded-sm">
                         ISSN: {journal.issn}
                       </span>
                     )}
@@ -202,7 +202,7 @@ function JournalsSearchContent() {
                     href={journal.homepage_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex-shrink-0 p-2 text-gray-400 hover:text-gray-600"
+                    className="shrink-0 p-2 text-gray-400 hover:text-gray-600"
                     title="Visit journal website"
                   >
                     <ExternalLink className="h-5 w-5" />

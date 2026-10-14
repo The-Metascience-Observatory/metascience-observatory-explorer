@@ -166,17 +166,17 @@ export default async function MeshDetailPage({ params }: Props) {
                   <Link
                     key={journal.sourceid}
                     href={`/journals/${journal.sourceid}`}
-                    className="flex items-center justify-between gap-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 rounded px-1 py-0.5 -mx-1"
+                    className="flex items-center justify-between gap-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 rounded-sm px-1 py-0.5 -mx-1"
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-xs text-gray-400 w-5 text-right flex-shrink-0">
+                      <span className="text-xs text-gray-400 w-5 text-right shrink-0">
                         {idx + 1}.
                       </span>
                       <span className="truncate text-gray-700 dark:text-gray-300">
                         {journal.sourceName}
                       </span>
                     </div>
-                    <span className="text-xs text-gray-400 flex-shrink-0">
+                    <span className="text-xs text-gray-400 shrink-0">
                       {formatNumber(journal.paperCount)}
                     </span>
                   </Link>

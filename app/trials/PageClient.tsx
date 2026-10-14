@@ -275,7 +275,7 @@ function TrialsSearchContent() {
           <Filter className="h-4 w-4" />
           <span>Filter by Phase</span>
           {selectedPhases.size < TRIAL_PHASES.length && (
-            <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
+            <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-sm">
               {selectedPhases.size} selected
             </span>
           )}
@@ -313,7 +313,7 @@ function TrialsSearchContent() {
                     onChange={(e) =>
                       handlePhaseChange(phase.value, e.target.checked)
                     }
-                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    className="h-4 w-4 rounded-sm border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                   <span>{phase.label}</span>
                 </label>

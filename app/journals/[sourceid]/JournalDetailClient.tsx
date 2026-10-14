@@ -87,7 +87,7 @@ export default function JournalDetailClient({
             {enrichment?.is_discontinued && (
               <div className="mb-4 bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded-lg p-4">
                 <div className="flex items-start gap-3">
-                  <AlertTriangle className="h-6 w-6 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                  <AlertTriangle className="h-6 w-6 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                   <div>
                     <h3 className="font-semibold text-amber-800 dark:text-amber-200">
                       Discontinued Journal
@@ -111,7 +111,7 @@ export default function JournalDetailClient({
             {hijackedInfo && (
               <div className="mb-4 bg-red-50 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-lg p-4">
                 <div className="flex items-start gap-3">
-                  <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                  <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
                   <div>
                     <h3 className="font-semibold text-red-800 dark:text-red-200">
                       Hijacked Journal Warning
@@ -147,7 +147,7 @@ export default function JournalDetailClient({
             {predatoryInfo && (
               <div className="mb-4 bg-orange-50 dark:bg-orange-900/30 border border-orange-300 dark:border-orange-700 rounded-lg p-4">
                 <div className="flex items-start gap-3">
-                  <AlertTriangle className="h-6 w-6 text-orange-600 dark:text-orange-400 flex-shrink-0 mt-0.5" />
+                  <AlertTriangle className="h-6 w-6 text-orange-600 dark:text-orange-400 shrink-0 mt-0.5" />
                   <div>
                     <h3 className="font-semibold text-orange-800 dark:text-orange-200">
                       {predatoryInfo.confidence === 'exact'

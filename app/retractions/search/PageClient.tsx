@@ -301,7 +301,7 @@ function RetractionsSearchContent() {
           <Filter className="h-4 w-4" />
           <span>Filters</span>
           {(selectedNature || selectedReason || yearFrom || yearTo) && (
-            <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
+            <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-sm">
               Active
             </span>
           )}
@@ -451,7 +451,7 @@ function RetractionsSearchContent() {
               <div className="flex flex-col gap-2">
                 {/* Nature badge and date */}
                 <div className="flex items-center justify-between gap-2">
-                  <span className={`px-2 py-0.5 text-xs font-medium rounded ${getNatureColor(item.retraction_nature)}`}>
+                  <span className={`px-2 py-0.5 text-xs font-medium rounded-sm ${getNatureColor(item.retraction_nature)}`}>
                     {item.retraction_nature}
                   </span>
                   <span className="text-sm text-gray-500">
@@ -485,13 +485,13 @@ function RetractionsSearchContent() {
                     {item.reasons.split(";").slice(0, 3).map((reason, idx) => (
                       <span
                         key={idx}
-                        className="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded"
+                        className="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-sm"
                       >
                         {reason.trim()}
                       </span>
                     ))}
                     {item.reasons.split(";").length > 3 && (
-                      <span className="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded">
+                      <span className="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-sm">
                         +{item.reasons.split(";").length - 3} more
                       </span>
                     )}

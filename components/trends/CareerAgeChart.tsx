@@ -33,7 +33,7 @@ function CareerTooltip({
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   return (
-    <div className="rounded border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm">
+    <div className="rounded-sm border border-gray-200 bg-white px-3 py-2 text-sm shadow-xs">
       <div className="font-medium text-gray-900">{label} years since doctorate</div>
       <div className="text-gray-600">
         Median lifetime works {d.median_works?.toLocaleString() ?? "—"}

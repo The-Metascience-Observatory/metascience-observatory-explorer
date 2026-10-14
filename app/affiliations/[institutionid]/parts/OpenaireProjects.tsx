@@ -57,7 +57,7 @@ export function OpenaireProjects({ institutionId }: { institutionId: string }) {
                   <div className="font-medium">
                     {project.acronym || project.code || "Untitled project"}
                     {project.funderShortname && (
-                      <span className="ml-2 px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                      <span className="ml-2 px-2 py-0.5 rounded-sm text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
                         {project.funderShortname}
                       </span>
                     )}

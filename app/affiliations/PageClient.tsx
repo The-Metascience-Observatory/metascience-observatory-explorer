@@ -176,7 +176,7 @@ function AffiliationsSearchContent() {
 
                   <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
                     {affiliation.country_code && (
-                      <span className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded">
+                      <span className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded-sm">
                         {affiliation.country_code}
                       </span>
                     )}
@@ -216,7 +216,7 @@ function AffiliationsSearchContent() {
                     href={affiliation.homepage_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex-shrink-0 p-2 text-gray-400 hover:text-gray-600"
+                    className="shrink-0 p-2 text-gray-400 hover:text-gray-600"
                     title="Visit institution website"
                   >
                     <ExternalLink className="h-5 w-5" />

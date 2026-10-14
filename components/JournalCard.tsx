@@ -22,7 +22,7 @@ export const JournalCard = memo(function JournalCard({ journal, compact = false 
       <Card className={`${compact ? "p-2" : "p-4"} hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors cursor-pointer`}>
         <div className={`flex items-start ${compact ? "gap-2" : "gap-3"}`}>
           {!compact && (
-            <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded">
+            <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-sm">
               <BookOpen className="h-5 w-5 text-gray-600 dark:text-gray-400" />
             </div>
           )}
@@ -30,12 +30,12 @@ export const JournalCard = memo(function JournalCard({ journal, compact = false 
             <div className="flex items-center gap-2">
               <h3 className={`${compact ? "text-sm" : ""} font-medium truncate`}>{journal.display_name}</h3>
               {journal.is_oa ? (
-                <span className="px-1.5 py-0.5 text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded">
+                <span className="px-1.5 py-0.5 text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded-sm">
                   OA
                 </span>
               ) : null}
               {journal.scopus_only && (
-                <span className="px-1.5 py-0.5 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded">
+                <span className="px-1.5 py-0.5 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded-sm">
                   Scopus
                 </span>
               )}
@@ -51,7 +51,7 @@ export const JournalCard = memo(function JournalCard({ journal, compact = false 
               </div>
             )}
           </div>
-          <ExternalLink className={`${compact ? "h-3 w-3" : "h-4 w-4"} text-gray-400 flex-shrink-0`} />
+          <ExternalLink className={`${compact ? "h-3 w-3" : "h-4 w-4"} text-gray-400 shrink-0`} />
         </div>
       </Card>
     </Link>
