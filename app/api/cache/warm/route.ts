@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { searchCaches, generateCacheKey } from "@/lib/search-cache";
 import { workerQuery, openaireWorkerQuery, getOpenaireWorkerPool } from "@/lib/worker-pool";
 import { getOpenaireCitationsDb } from "@/lib/db";
+import { errorResponse } from "@/lib/api-utils";
 
 /**
  * Cache warming endpoint - preloads common searches into memory
@@ -102,7 +103,39 @@ async function warmOpenairePapers(
   return raced.rows;
 }
 
-export async function POST() {
+/**
+ * Cache warming is expensive — ~78 FTS/LIKE queries over 250M papers plus an
+ * OpenAIRE pass with a 10s budget each; scripts/start-with-cache.sh notes it
+ * "takes minutes". It was previously reachable by anyone, with a GET alias, so
+ * a single curl could trigger minutes of server work.
+ *
+ * Two guards now. Loopback-only, matching the loopback branch in middleware.ts:
+ * the only legitimate caller is the start script curling localhost. And a
+ * module-level in-flight promise, because the `searchCaches.has()` checks inside
+ * do not stop concurrent callers from all missing and all executing.
+ */
+function isLoopback(request: Request): boolean {
+  const host = request.headers.get("host") ?? "";
+  if (!/^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(host)) return false;
+  // Behind Cloudflare these are always set, so their presence means the request
+  // arrived over the tunnel rather than from the box itself.
+  return !request.headers.get("cf-connecting-ip") && !request.headers.get("x-forwarded-for");
+}
+
+let inFlight: Promise<NextResponse> | null = null;
+
+export async function POST(request: Request) {
+  if (!isLoopback(request)) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  if (inFlight) return inFlight;
+  inFlight = warmCaches().finally(() => {
+    inFlight = null;
+  });
+  return inFlight;
+}
+
+async function warmCaches(): Promise<NextResponse> {
   const startTime = Date.now();
   const results = {
     papers: { cached: 0, errors: 0 },
@@ -255,15 +288,9 @@ export async function POST() {
     });
 
   } catch (error) {
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-      results
-    }, { status: 500 });
+    // Was returning error.message verbatim, which leaks table names and
+    // absolute container paths out of SQLite errors.
+    return errorResponse(error, "cache/warm");
   }
 }
 
-// Also allow GET for easy testing
-export async function GET() {
-  return POST();
-}

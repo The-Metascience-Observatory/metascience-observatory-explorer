@@ -227,6 +227,13 @@ export const config = {
   //
   // Note /api/ IS matched — the search endpoints depend on the stricter tier.
   matcher: [
-    "/((?!_next/static|_next/image|_next/data|favicon\\.ico|assets/|robots\\.txt|sitemap\\.xml|sitemaps/|.*\\.(?:png|jpe?g|gif|svg|ico|webp|txt|xml|gz)$).*)",
+    // The exclusions are PREFIX-anchored on purpose. This previously ended with
+    // `.*\.(?:png|...|txt|xml|gz)$`, which exempted *any* path with one of those
+    // endings — not just static assets. Because several routes end in a dynamic
+    // segment, the suffix was attacker-chosen: `/api/persons/A123.txt` and
+    // `/doi/10.1/x.txt` skipped this middleware entirely, so the blocklist, the
+    // suspicious-input filter and both rate limiters never ran. Static assets are
+    // already covered by the `_next/*` and `assets/` prefixes.
+    "/((?!_next/static|_next/image|_next/data|favicon\\.ico|assets/|robots\\.txt|sitemap\\.xml|sitemaps/).*)",
   ],
 };

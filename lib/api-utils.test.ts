@@ -21,6 +21,14 @@ describe("parsePagination", () => {
     expect(parsePagination(params("limit=-10&offset=-5"))).toEqual({ offset: 0, limit: 1 });
   });
 
+  it("caps offset so a deep page cannot be requested", () => {
+    // An uncapped offset defeats SQLite's bounded sorter and is a guaranteed
+    // cache miss (the cache key includes offset), making every request costly.
+    expect(parsePagination(params("offset=999999")).offset).toBe(10_000);
+    expect(parsePagination(params("offset=999999"), { maxOffset: 500 }).offset).toBe(500);
+    expect(parsePagination(params("offset=250")).offset).toBe(250);
+  });
+
   it("treats limit=0 as absent, not as a floor case", () => {
     // parseInt("0") is 0, which is falsy, so the `|| defaultLimit` guard sends
     // it to the default rather than clamping to 1. Surprising but intentional
