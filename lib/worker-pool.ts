@@ -12,165 +12,283 @@ import path from 'path';
 interface PendingQuery {
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
+  /** Which worker this was dispatched to, so its failure can settle it. */
+  workerIndex: number;
+  timer: ReturnType<typeof setTimeout>;
 }
 
 interface WorkerWrapper {
-  worker: Worker;
+  worker: Worker | null;
   ready: boolean;
+  /** Queries dispatched to this worker and not yet settled. */
+  inFlight: number;
+  spawnedAt: number;
 }
 
 interface PoolOptions {
   dbPath?: string;      // defaults to data/journals.db
   cacheSize?: number;   // SQLite cache_size pragma (negative = KB)
   mmapSize?: number;    // SQLite mmap_size pragma (bytes)
+  /** Reject a query after this long and replace the worker running it. */
+  queryTimeoutMs?: number;
+  /** Reject immediately once this many queries are outstanding pool-wide. */
+  maxInFlight?: number;
 }
+
+/**
+ * better-sqlite3 is synchronous inside the worker, so a slow statement wedges
+ * that whole thread and cannot be cancelled. The only recovery is to stop
+ * waiting and terminate the thread, which is what the timeout does.
+ */
+const DEFAULT_QUERY_TIMEOUT_MS = 30_000;
+/**
+ * Past this many outstanding queries pool-wide, fail fast rather than queueing.
+ *
+ * Normal queries settle in single-digit milliseconds, so this is never reached
+ * by legitimate traffic; it is the ceiling that stops a slow-query flood from
+ * building a backlog nothing can work through. Deliberately not generous: with
+ * four workers that is 64 outstanding, so a flood fails quickly instead of
+ * accumulating hundreds of requests that each wait out the timeout.
+ */
+const DEFAULT_MAX_IN_FLIGHT_PER_WORKER = 16;
+/** Don't respawn in a tight loop when the database itself is the problem. */
+const RESPAWN_DELAY_MS = 2_000;
+const MAX_CONSECUTIVE_SPAWN_FAILURES = 6;
 
 class DatabaseWorkerPool {
   private workers: WorkerWrapper[] = [];
   private pendingQueries: Map<number, PendingQuery> = new Map();
   private nextQueryId = 0;
-  private nextWorkerIndex = 0;
   private initialized = false;
   private initPromise: Promise<void> | null = null;
   private poolSize: number;
   private options: PoolOptions;
+  private workerPath: string;
+  private dbPath: string;
+  private consecutiveSpawnFailures = 0;
+  private permanentlyDegraded = false;
 
   constructor(poolSize: number = 4, options: PoolOptions = {}) {
     this.poolSize = poolSize;
     this.options = options;
+    this.workerPath = path.join(process.cwd(), 'lib', 'db-worker.js');
+    this.dbPath = options.dbPath || path.join(process.cwd(), 'data', 'journals.db');
+  }
+
+  private get queryTimeoutMs(): number {
+    return this.options.queryTimeoutMs ?? DEFAULT_QUERY_TIMEOUT_MS;
+  }
+
+  private get maxInFlight(): number {
+    return this.options.maxInFlight ?? this.poolSize * DEFAULT_MAX_IN_FLIGHT_PER_WORKER;
   }
 
   private async initialize(): Promise<void> {
     if (this.initialized) return;
     if (this.initPromise) return this.initPromise;
-
     this.initPromise = this._doInitialize();
     return this.initPromise;
   }
 
   private async _doInitialize(): Promise<void> {
-    const workerPath = path.join(process.cwd(), 'lib', 'db-worker.js');
-    const dbPath = this.options.dbPath || path.join(process.cwd(), 'data', 'journals.db');
-
-    const workerPromises: Promise<void>[] = [];
-
-    for (let i = 0; i < this.poolSize; i++) {
-      const promise = new Promise<void>((resolve, reject) => {
-        try {
-          const worker = new Worker(workerPath, {
-            workerData: {
-              dbPath,
-              cacheSize: this.options.cacheSize,
-              mmapSize: this.options.mmapSize
-            }
-          });
-
-          const wrapper: WorkerWrapper = { worker, ready: false };
-
-          worker.on('online', () => {
-            wrapper.ready = true;
-            resolve();
-          });
-
-          worker.on('message', (msg: { id: number; result?: unknown; error?: string }) => {
-            const pending = this.pendingQueries.get(msg.id);
-            if (pending) {
-              this.pendingQueries.delete(msg.id);
-              if (msg.error) {
-                pending.reject(new Error(msg.error));
-              } else {
-                pending.resolve(msg.result);
-              }
-            }
-          });
-
-          worker.on('error', (error) => {
-            console.error(`Worker ${i} error:`, error);
-            // Reject any pending queries for this worker
-            reject(error);
-          });
-
-          worker.on('exit', (code) => {
-            if (code !== 0) {
-              console.error(`Worker ${i} exited with code ${code}`);
-            }
-            wrapper.ready = false;
-          });
-
-          this.workers.push(wrapper);
-        } catch (error) {
-          reject(error);
-        }
-      });
-
-      workerPromises.push(promise);
-    }
-
-    await Promise.all(workerPromises);
+    this.workers = Array.from({ length: this.poolSize }, () => ({
+      worker: null,
+      ready: false,
+      inFlight: 0,
+      spawnedAt: 0,
+    }));
+    await Promise.all(this.workers.map((_, i) => this.spawnWorker(i)));
     this.initialized = true;
     console.log(`Database worker pool initialized with ${this.poolSize} workers`);
   }
 
-  private getNextWorker(): Worker {
-    // Round-robin worker selection
-    const startIndex = this.nextWorkerIndex;
+  /** Create (or replace) the worker in slot `index` and wire its handlers. */
+  private spawnWorker(index: number): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      let settledOnline = false;
+      try {
+        const worker = new Worker(this.workerPath, {
+          workerData: {
+            dbPath: this.dbPath,
+            cacheSize: this.options.cacheSize,
+            mmapSize: this.options.mmapSize,
+          },
+        });
 
-    for (let i = 0; i < this.workers.length; i++) {
-      const index = (startIndex + i) % this.workers.length;
-      const wrapper = this.workers[index];
-      if (wrapper.ready) {
-        this.nextWorkerIndex = (index + 1) % this.workers.length;
-        return wrapper.worker;
+        const wrapper = this.workers[index];
+        wrapper.worker = worker;
+        wrapper.ready = false;
+        wrapper.inFlight = 0;
+        wrapper.spawnedAt = Date.now();
+
+        worker.on('online', () => {
+          wrapper.ready = true;
+          settledOnline = true;
+          resolve();
+        });
+
+        worker.on('message', (msg: { id: number; result?: unknown; error?: string }) => {
+          this.settle(msg.id, msg.error ? new Error(msg.error) : null, msg.result);
+        });
+
+        // 'online' fires when the thread starts, BEFORE db-worker.js opens the
+        // database — so init can succeed and the worker die immediately after.
+        // Both handlers below must therefore settle this worker's queries, or
+        // the awaiting request hangs forever instead of failing.
+        worker.on('error', (error) => {
+          console.error(`[worker-pool] worker ${index} (${path.basename(this.dbPath)}) error:`, error);
+          wrapper.ready = false;
+          this.failWorkerQueries(index, error instanceof Error ? error : new Error(String(error)));
+          if (!settledOnline) reject(error);
+          this.handleWorkerLoss(index);
+        });
+
+        worker.on('exit', (code) => {
+          wrapper.ready = false;
+          if (code !== 0) {
+            console.error(`[worker-pool] worker ${index} (${path.basename(this.dbPath)}) exited with code ${code}`);
+          }
+          this.failWorkerQueries(index, new Error(`Database worker exited (code ${code})`));
+          if (!settledOnline) reject(new Error(`Database worker exited during startup (code ${code})`));
+          this.handleWorkerLoss(index);
+        });
+      } catch (error) {
+        reject(error);
       }
+    });
+  }
+
+  /**
+   * Respawn a lost worker, unless the database itself is clearly the problem.
+   * A worker that dies almost immediately after spawning means a bad or missing
+   * file, and respawning that in a loop would burn the box.
+   */
+  private handleWorkerLoss(index: number): void {
+    if (this.permanentlyDegraded) return;
+    const wrapper = this.workers[index];
+    if (wrapper.worker) {
+      wrapper.worker.removeAllListeners();
+      wrapper.worker = null;
     }
 
-    // Fallback to first worker if none ready (shouldn't happen)
-    return this.workers[0].worker;
+    const diedFast = Date.now() - wrapper.spawnedAt < RESPAWN_DELAY_MS;
+    this.consecutiveSpawnFailures = diedFast ? this.consecutiveSpawnFailures + 1 : 0;
+
+    if (this.consecutiveSpawnFailures >= MAX_CONSECUTIVE_SPAWN_FAILURES) {
+      this.permanentlyDegraded = true;
+      console.error(
+        `[worker-pool] ${path.basename(this.dbPath)}: giving up after ` +
+          `${this.consecutiveSpawnFailures} immediate worker failures; queries will now fail fast`
+      );
+      return;
+    }
+
+    setTimeout(() => {
+      if (this.permanentlyDegraded) return;
+      this.spawnWorker(index).catch(() => {
+        // Already logged by the handlers above; handleWorkerLoss will retry.
+      });
+    }, diedFast ? RESPAWN_DELAY_MS : 0);
+  }
+
+  private settle(queryId: number, error: Error | null, result?: unknown): void {
+    const pending = this.pendingQueries.get(queryId);
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    this.pendingQueries.delete(queryId);
+    const wrapper = this.workers[pending.workerIndex];
+    if (wrapper && wrapper.inFlight > 0) wrapper.inFlight--;
+    if (error) pending.reject(error);
+    else pending.resolve(result);
+  }
+
+  private failWorkerQueries(index: number, error: Error): void {
+    for (const [id, pending] of this.pendingQueries) {
+      if (pending.workerIndex === index) this.settle(id, error);
+    }
+    const wrapper = this.workers[index];
+    if (wrapper) wrapper.inFlight = 0;
+  }
+
+  /** Least-loaded ready worker. Throws rather than returning a dead one. */
+  private pickWorker(): number {
+    let best = -1;
+    for (let i = 0; i < this.workers.length; i++) {
+      const w = this.workers[i];
+      if (!w.ready || !w.worker) continue;
+      if (best === -1 || w.inFlight < this.workers[best].inFlight) best = i;
+    }
+    if (best === -1) {
+      throw new Error('No database worker is available');
+    }
+    return best;
+  }
+
+  private dispatch<T>(type: 'all' | 'get', sql: string, params: unknown[]): Promise<T> {
+    if (this.permanentlyDegraded) {
+      return Promise.reject(new Error('Database worker pool is unavailable'));
+    }
+    if (this.pendingQueries.size >= this.maxInFlight) {
+      // Fail fast so the route returns an error instead of queueing behind a
+      // backlog the pool cannot work through.
+      return Promise.reject(new Error('Database worker pool is saturated'));
+    }
+
+    return new Promise<T>((resolve, reject) => {
+      let index: number;
+      try {
+        index = this.pickWorker();
+      } catch (error) {
+        reject(error);
+        return;
+      }
+
+      const queryId = this.nextQueryId++;
+      const timer = setTimeout(() => {
+        // The worker is stuck inside a synchronous SQLite call and cannot be
+        // interrupted, so stop waiting and replace the thread.
+        console.error(
+          `[worker-pool] query ${queryId} on ${path.basename(this.dbPath)} exceeded ` +
+            `${this.queryTimeoutMs}ms; terminating worker ${index}`
+        );
+        const wrapper = this.workers[index];
+        this.failWorkerQueries(index, new Error('Database query timed out'));
+        wrapper.ready = false;
+        void wrapper.worker?.terminate();
+      }, this.queryTimeoutMs);
+
+      this.pendingQueries.set(queryId, {
+        resolve: resolve as (value: unknown) => void,
+        reject,
+        workerIndex: index,
+        timer,
+      });
+      this.workers[index].inFlight++;
+      this.workers[index].worker?.postMessage({ id: queryId, type, sql, params });
+    });
   }
 
   async query<T>(sql: string, ...params: unknown[]): Promise<T[]> {
     await this.initialize();
-
-    return new Promise<T[]>((resolve, reject) => {
-      const queryId = this.nextQueryId++;
-      this.pendingQueries.set(queryId, {
-        resolve: resolve as (value: unknown) => void,
-        reject
-      });
-
-      const worker = this.getNextWorker();
-      worker.postMessage({
-        id: queryId,
-        type: 'all',
-        sql,
-        params
-      });
-    });
+    return this.dispatch<T[]>('all', sql, params);
   }
 
   async queryOne<T>(sql: string, ...params: unknown[]): Promise<T | undefined> {
     await this.initialize();
-
-    return new Promise<T | undefined>((resolve, reject) => {
-      const queryId = this.nextQueryId++;
-      this.pendingQueries.set(queryId, {
-        resolve: resolve as (value: unknown) => void,
-        reject
-      });
-
-      const worker = this.getNextWorker();
-      worker.postMessage({
-        id: queryId,
-        type: 'get',
-        sql,
-        params
-      });
-    });
+    return this.dispatch<T | undefined>('get', sql, params);
   }
 
   async shutdown(): Promise<void> {
-    const terminatePromises = this.workers.map(({ worker }) => worker.terminate());
-    await Promise.all(terminatePromises);
+    for (const [id] of this.pendingQueries) {
+      this.settle(id, new Error('Database worker pool shutting down'));
+    }
+    this.permanentlyDegraded = true;
+    await Promise.all(
+      this.workers.map(({ worker }) => {
+        worker?.removeAllListeners();
+        return worker?.terminate();
+      })
+    );
     this.workers = [];
     this.initialized = false;
     this.initPromise = null;
