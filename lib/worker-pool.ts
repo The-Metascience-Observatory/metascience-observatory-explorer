@@ -39,8 +39,21 @@ interface PoolOptions {
  * better-sqlite3 is synchronous inside the worker, so a slow statement wedges
  * that whole thread and cannot be cancelled. The only recovery is to stop
  * waiting and terminate the thread, which is what the timeout does.
+ *
+ * 60s is sized from measurement, and it is a ceiling around a known pathology
+ * rather than an endorsement of it. Cold paper searches for very common terms
+ * are genuinely slow: "cancer" and "brain" at the UI's limit=50 measured 14.4s
+ * and 13.6s, the underlying FTS-join-sort takes 21.8s run directly, and a cold
+ * `?q=cancer&limit=5` took 44.0s end to end. A 30s budget turned that into a
+ * 500 and 45s left a one-second margin, so neither is safe.
+ *
+ * The point of the timeout is to convert an unbounded hang into a bounded
+ * failure, not to police latency. A 44s search is its own bug — the query sorts
+ * the entire FTS match set by cited_by_count, which for a common term means
+ * joining millions of rows to paper_summary — and it wants a precomputed
+ * ranking, not a larger number here.
  */
-const DEFAULT_QUERY_TIMEOUT_MS = 30_000;
+const DEFAULT_QUERY_TIMEOUT_MS = 60_000;
 /**
  * Past this many outstanding queries pool-wide, fail fast rather than queueing.
  *

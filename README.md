@@ -1,4 +1,4 @@
-# SciSciNet Dashboard
+# The Metascience Observatory Explorer
 
 A metascience dashboard for exploring research publications, authors, institutions, funding, and clinical trials.
 
@@ -76,15 +76,6 @@ Built on the [SciSciNet](https://github.com/kellogg-cssi/SciSciNet) open data la
 - **Database**: SQLite (better-sqlite3) - 1.5TB+ research data
 - **Styling**: Tailwind CSS 4
 - **Visualization**: D3.js, Recharts
-
-## Getting Started
-
-```bash
-npm install
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) to view the dashboard.
 
 ## References
 
