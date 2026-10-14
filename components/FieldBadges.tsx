@@ -123,7 +123,7 @@ export function FieldBadges({ fields, sourceid, maxDisplay = 10 }: FieldBadgesPr
       <div key={field.fieldid} className="w-full overflow-hidden">
         <button
           onClick={() => handleFieldClick(field.fieldid)}
-          className={`px-3 py-1.5 rounded text-sm ${colors.bg} ${colors.text} ${colors.hover} transition-all cursor-pointer flex items-center justify-between gap-2 max-w-full`}
+          className={`px-3 py-1.5 rounded-sm text-sm ${colors.bg} ${colors.text} ${colors.hover} transition-all cursor-pointer flex items-center justify-between gap-2 max-w-full`}
           style={{ width: `${widthPercent}%` }}
           title={`${field.paper_count.toLocaleString()} papers - Click to see top papers`}
         >
@@ -159,7 +159,7 @@ export function FieldBadges({ fields, sourceid, maxDisplay = 10 }: FieldBadgesPr
                     <Link
                       key={paper.paperid}
                       href={`/papers/${paper.paperid}`}
-                      className="block p-2 bg-white dark:bg-gray-900 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      className="block p-2 bg-white dark:bg-gray-900 rounded-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">

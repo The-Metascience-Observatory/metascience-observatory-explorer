@@ -176,7 +176,7 @@ export default function LitePaperPage({ paperid }: LitePaperPageProps) {
       {/* Limited data banner */}
       <div className="mb-6 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
         <div className="flex items-start gap-2">
-          <Info className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+          <Info className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
           <div>
             <p className="text-sm text-amber-800 dark:text-amber-200 font-medium">
               Limited data available
@@ -196,7 +196,7 @@ export default function LitePaperPage({ paperid }: LitePaperPageProps) {
           <CardContent className="pt-6">
             {/* Retracted warning */}
             {data.isRetracted && (
-              <div className="mb-4 p-2 bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded">
+              <div className="mb-4 p-2 bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-sm">
                 <span className="text-sm font-medium text-red-800 dark:text-red-200">
                   ⚠️ This paper has been retracted
                 </span>
@@ -210,18 +210,18 @@ export default function LitePaperPage({ paperid }: LitePaperPageProps) {
 
             {/* Abstract (lazy loaded) */}
             {abstractLoading ? (
-              <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800 rounded">
+              <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-sm">
                 <div className="animate-pulse">
-                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-full mb-2"></div>
-                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-5/6 mb-2"></div>
-                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-4/6"></div>
+                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-sm w-full mb-2"></div>
+                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-sm w-5/6 mb-2"></div>
+                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-sm w-4/6"></div>
                 </div>
               </div>
             ) : abstract ? (
               <div className="mb-4">
-                <div className="text-sm text-gray-700 dark:text-gray-300 p-3 bg-gray-50 dark:bg-gray-800 rounded">
+                <div className="text-sm text-gray-700 dark:text-gray-300 p-3 bg-gray-50 dark:bg-gray-800 rounded-sm">
                   {abstractLanguage && abstractLanguage !== "en" && (
-                    <span className="inline-block px-1.5 py-0.5 mb-2 text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 rounded">
+                    <span className="inline-block px-1.5 py-0.5 mb-2 text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 rounded-sm">
                       {abstractLanguage.toUpperCase()}
                     </span>
                   )}
@@ -287,7 +287,7 @@ export default function LitePaperPage({ paperid }: LitePaperPageProps) {
                   {data.source.name}
                 </Link>
                 {data.source.isOa && (
-                  <span className="ml-2 px-1.5 py-0.5 text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded">
+                  <span className="ml-2 px-1.5 py-0.5 text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded-sm">
                     Open Access
                   </span>
                 )}
@@ -386,7 +386,7 @@ export default function LitePaperPage({ paperid }: LitePaperPageProps) {
                       href={getPatentUrl(patent.patent)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="block p-2 bg-gray-50 dark:bg-gray-800 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      className="block p-2 bg-gray-50 dark:bg-gray-800 rounded-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-sm font-medium text-blue-600">
@@ -412,7 +412,7 @@ export default function LitePaperPage({ paperid }: LitePaperPageProps) {
                         href={`https://pubmed.ncbi.nlm.nih.gov/${extraData.pubmed.pmid}/`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded hover:bg-blue-200 dark:hover:bg-blue-800"
+                        className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded-sm hover:bg-blue-200 dark:hover:bg-blue-800"
                       >
                         PMID: {extraData.pubmed.pmid}
                         <ExternalLink className="h-3 w-3" />
@@ -423,7 +423,7 @@ export default function LitePaperPage({ paperid }: LitePaperPageProps) {
                         href={`https://www.ncbi.nlm.nih.gov/pmc/articles/PMC${extraData.pubmed.pmcid}/`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded hover:bg-green-200 dark:hover:bg-green-800"
+                        className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded-sm hover:bg-green-200 dark:hover:bg-green-800"
                       >
                         PMC{extraData.pubmed.pmcid}
                         <ExternalLink className="h-3 w-3" />
@@ -454,13 +454,13 @@ export default function LitePaperPage({ paperid }: LitePaperPageProps) {
                         href={item.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="block p-2 bg-gray-50 dark:bg-gray-800 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        className="block p-2 bg-gray-50 dark:bg-gray-800 rounded-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                       >
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-sm text-blue-600 truncate">
                             {domain}
                           </span>
-                          <ExternalLink className="h-3 w-3 text-gray-400 flex-shrink-0" />
+                          <ExternalLink className="h-3 w-3 text-gray-400 shrink-0" />
                         </div>
                         {item.timestamp && (
                           <div className="text-xs text-gray-500 mt-1">

@@ -144,14 +144,14 @@ export default function TrendsPageClient() {
       {loading && <div className="py-12 text-center text-gray-500">Loading trends…</div>}
 
       {nothing && (
-        <div className="rounded border border-gray-200 bg-gray-50 p-6 text-sm text-gray-600">
+        <div className="rounded-sm border border-gray-200 bg-gray-50 p-6 text-sm text-gray-600">
           Trend data is not available on this deployment.
         </div>
       )}
 
       {designs && (
         <>
-          <div className="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <div className="mb-3 rounded-sm border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
             <strong>Four ways of showing the same data</strong> — pick whichever reads
             best and the other three come out. They share one dataset and one set of
             caveats; only the visual form differs.

@@ -21,7 +21,7 @@ export const PaperCard = memo(function PaperCard({ paper, compact = false }: Pap
       <Card className={`${compact ? "p-2" : "p-4"} hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors cursor-pointer`}>
         <div className={`flex items-start ${compact ? "gap-2" : "gap-3"}`}>
           {!compact && (
-            <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded">
+            <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-sm">
               <FileText className="h-5 w-5 text-gray-600 dark:text-gray-400" />
             </div>
           )}
@@ -31,12 +31,12 @@ export const PaperCard = memo(function PaperCard({ paper, compact = false }: Pap
                 <PaperTitle title={paper.title} />
               </h3>
               {paper.openaire && (
-                <span className="flex-shrink-0 px-1.5 py-0.5 text-xs bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200 rounded">
+                <span className="shrink-0 px-1.5 py-0.5 text-xs bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200 rounded-sm">
                   OpenAIRE
                 </span>
               )}
               {!compact && cites != null && cites >= 100 && (
-                <span className="flex-shrink-0 px-1.5 py-0.5 text-xs bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 rounded">
+                <span className="shrink-0 px-1.5 py-0.5 text-xs bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 rounded-sm">
                   {formatNumber(cites)} cites
                 </span>
               )}

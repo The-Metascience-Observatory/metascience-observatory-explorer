@@ -127,7 +127,7 @@ export default function TopJournalsClient({
                 id="field-filter"
                 value={selectedField}
                 onChange={handleFieldChange}
-                className="block w-48 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+                className="block w-48 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-blue-500 focus:border-blue-500 text-sm"
               >
                 <option value="">All Fields</option>
                 {data?.fields.map((f) => (
@@ -146,7 +146,7 @@ export default function TopJournalsClient({
                   setSortField(e.target.value as SortField);
                   setDirty(true);
                 }}
-                className="block w-40 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+                className="block w-40 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-blue-500 focus:border-blue-500 text-sm"
               >
                 {Object.entries(SORT_LABELS).map(([value, label]) => (
                   <option key={value} value={value}>{label}</option>

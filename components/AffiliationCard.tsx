@@ -31,7 +31,7 @@ export const AffiliationCard = memo(function AffiliationCard({ affiliation, comp
       <Card className={`${compact ? "p-2" : "p-4"} hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors cursor-pointer`}>
         <div className={`flex items-start ${compact ? "gap-2" : "gap-3"}`}>
           {!compact && (
-            <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded">
+            <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-sm">
               <Building2 className="h-5 w-5 text-gray-600 dark:text-gray-400" />
             </div>
           )}
@@ -39,7 +39,7 @@ export const AffiliationCard = memo(function AffiliationCard({ affiliation, comp
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className={`${compact ? "text-sm" : ""} font-medium truncate`}>{affiliation.display_name}</h3>
               {affiliation.type && !compact && (
-                <span className={`px-2 py-0.5 text-xs rounded ${typeColor}`}>
+                <span className={`px-2 py-0.5 text-xs rounded-sm ${typeColor}`}>
                   {affiliation.type}
                 </span>
               )}
@@ -58,7 +58,7 @@ export const AffiliationCard = memo(function AffiliationCard({ affiliation, comp
               </div>
             )}
           </div>
-          <ExternalLink className={`${compact ? "h-3 w-3" : "h-4 w-4"} text-gray-400 flex-shrink-0`} />
+          <ExternalLink className={`${compact ? "h-3 w-3" : "h-4 w-4"} text-gray-400 shrink-0`} />
         </div>
       </Card>
     </Link>

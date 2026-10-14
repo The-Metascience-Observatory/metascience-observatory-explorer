@@ -454,7 +454,7 @@ export default function RetractionsAnalyticsPage() {
                     className="flex items-center justify-between py-2 border-b dark:border-gray-800"
                   >
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <span className="text-gray-400 text-sm w-6 flex-shrink-0">{idx + 1}.</span>
+                      <span className="text-gray-400 text-sm w-6 shrink-0">{idx + 1}.</span>
                       {journal.sourceid ? (
                         <Link
                           href={`/journals/${journal.sourceid}`}
@@ -469,7 +469,7 @@ export default function RetractionsAnalyticsPage() {
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 flex-shrink-0 ml-2">
+                    <div className="flex items-center gap-3 shrink-0 ml-2">
                       <span className="text-xs text-gray-500">
                         {journal.retractions}/{journal.papersSince2010.toLocaleString()}
                       </span>

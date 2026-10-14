@@ -101,7 +101,7 @@ export function StudyDesignFacets({ series }: { series: DesignYear[] }) {
         }));
         const peak = Math.max(...data.map((d) => d.pct));
         return (
-          <div key={name} className="rounded border border-gray-200 p-2">
+          <div key={name} className="rounded-sm border border-gray-200 p-2">
             <div className="mb-1 text-xs font-medium text-gray-700">{name}</div>
             {/* Each panel states its own peak: with independent y-scales, a shape
                 without its scale is not interpretable. */}
