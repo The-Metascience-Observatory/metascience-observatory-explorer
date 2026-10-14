@@ -76,7 +76,7 @@ export default function ScopusOnlyJournalPage() {
       {/* Scopus-only notice */}
       <div className="mb-4 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
         <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300">
-          <Info className="h-4 w-4 flex-shrink-0" />
+          <Info className="h-4 w-4 shrink-0" />
           <span>This journal has metadata from Scopus only. Publication and citation data is not available.</span>
         </div>
       </div>
@@ -87,7 +87,7 @@ export default function ScopusOnlyJournalPage() {
           {data.is_discontinued && (
             <div className="mb-4 bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded-lg p-4">
               <div className="flex items-start gap-3">
-                <AlertTriangle className="h-6 w-6 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                <AlertTriangle className="h-6 w-6 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                 <div>
                   <h3 className="font-semibold text-amber-800 dark:text-amber-200">
                     Discontinued Journal
@@ -195,7 +195,7 @@ export default function ScopusOnlyJournalPage() {
                 {data.asjc_codes.slice(0, 10).map((code, idx) => (
                   <span
                     key={idx}
-                    className="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 rounded"
+                    className="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 rounded-sm"
                   >
                     {code}
                   </span>

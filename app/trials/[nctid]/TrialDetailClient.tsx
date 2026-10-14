@@ -98,12 +98,12 @@ export default function TrialDetailClient({ data }: { data: TrialDetails }) {
             {(summary.phase || summary.study_type) && (
               <div className="flex flex-wrap gap-2 mb-4">
                 {summary.phase && (
-                  <span className="px-2 py-1 text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 rounded">
+                  <span className="px-2 py-1 text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 rounded-sm">
                     {summary.phase}
                   </span>
                 )}
                 {summary.study_type && (
-                  <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded">
+                  <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded-sm">
                     {summary.study_type}
                   </span>
                 )}
@@ -113,7 +113,7 @@ export default function TrialDetailClient({ data }: { data: TrialDetails }) {
             {/* Sponsor */}
             {summary.sponsor && (
               <div className="flex items-start gap-2 mb-3 text-sm">
-                <Building2 className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                <Building2 className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />
                 <span className="text-gray-600 dark:text-gray-400">{summary.sponsor}</span>
               </div>
             )}
@@ -155,7 +155,7 @@ export default function TrialDetailClient({ data }: { data: TrialDetails }) {
                 <h3 className="text-xs font-semibold text-gray-500 uppercase mb-2">Conditions</h3>
                 <div className="flex flex-wrap gap-1">
                   {conditions.slice(0, 5).map((condition, idx) => (
-                    <span key={idx} className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 rounded">
+                    <span key={idx} className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 rounded-sm">
                       {condition}
                     </span>
                   ))}
@@ -177,7 +177,7 @@ export default function TrialDetailClient({ data }: { data: TrialDetails }) {
                     <Link
                       key={idx}
                       href={`/trials?intervention=${encodeURIComponent(intervention)}`}
-                      className="px-2 py-1 text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200 rounded hover:bg-orange-200 dark:hover:bg-orange-800/50 transition-colors"
+                      className="px-2 py-1 text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200 rounded-sm hover:bg-orange-200 dark:hover:bg-orange-800/50 transition-colors"
                     >
                       {intervention}
                     </Link>
@@ -296,7 +296,7 @@ export default function TrialDetailClient({ data }: { data: TrialDetails }) {
                 <CardTitle className="text-base">Brief Summary</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className={`text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap ${showFullSummary ? "" : "line-clamp-[10]"}`}>
+                <p className={`text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap ${showFullSummary ? "" : "line-clamp-10"}`}>
                   {summary.brief_summary}
                 </p>
                 {summary.brief_summary.length > 800 && (
@@ -360,7 +360,7 @@ export default function TrialDetailClient({ data }: { data: TrialDetails }) {
               <CardTitle className="flex items-center gap-2 text-base">
                 <FileText className="h-5 w-5 text-gray-600" />
                 Background Papers
-                <span className="px-2 py-0.5 bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200 rounded text-sm font-normal">
+                <span className="px-2 py-0.5 bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200 rounded-sm text-sm font-normal">
                   {backgroundPapers.length}
                 </span>
                 <Tooltip>
@@ -382,14 +382,14 @@ export default function TrialDetailClient({ data }: { data: TrialDetails }) {
                     <Link
                       key={`${paper.paperid}-${idx}`}
                       href={`/papers/${paper.paperid}`}
-                      className="block py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 -mx-2 px-2 rounded transition-colors"
+                      className="block py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 -mx-2 px-2 rounded-sm transition-colors"
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
                           <div className="font-medium line-clamp-2">{paper.title ? <PaperTitle title={paper.title} /> : "Untitled"}</div>
                           <div className="text-sm text-gray-500 mt-1">{paper.year && <span>{paper.year}</span>}</div>
                         </div>
-                        <div className="text-right flex-shrink-0 tabular-nums">
+                        <div className="text-right shrink-0 tabular-nums">
                           <span className="text-sm text-gray-500">{formatNumber(paper.cited_by_count)} citations</span>
                         </div>
                       </div>
@@ -406,7 +406,7 @@ export default function TrialDetailClient({ data }: { data: TrialDetails }) {
               <CardTitle className="flex items-center gap-2 text-base">
                 <FileText className="h-5 w-5 text-green-600" />
                 Result Papers
-                <span className="px-2 py-0.5 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded text-sm font-normal">
+                <span className="px-2 py-0.5 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded-sm text-sm font-normal">
                   {resultPapers.length}
                 </span>
                 <Tooltip>
@@ -428,14 +428,14 @@ export default function TrialDetailClient({ data }: { data: TrialDetails }) {
                     <Link
                       key={`${paper.paperid}-${idx}`}
                       href={`/papers/${paper.paperid}`}
-                      className="block py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 -mx-2 px-2 rounded transition-colors"
+                      className="block py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 -mx-2 px-2 rounded-sm transition-colors"
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
                           <div className="font-medium line-clamp-2">{paper.title ? <PaperTitle title={paper.title} /> : "Untitled"}</div>
                           <div className="text-sm text-gray-500 mt-1">{paper.year && <span>{paper.year}</span>}</div>
                         </div>
-                        <div className="text-right flex-shrink-0 tabular-nums">
+                        <div className="text-right shrink-0 tabular-nums">
                           <span className="text-sm text-gray-500">{formatNumber(paper.cited_by_count)} citations</span>
                         </div>
                       </div>
@@ -452,7 +452,7 @@ export default function TrialDetailClient({ data }: { data: TrialDetails }) {
               <CardTitle className="flex items-center gap-2 text-base">
                 <FileText className="h-5 w-5 text-blue-600" />
                 Derived Papers
-                <span className="px-2 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded text-sm font-normal">
+                <span className="px-2 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded-sm text-sm font-normal">
                   {derivedPapers.length}
                 </span>
                 <Tooltip>
@@ -474,14 +474,14 @@ export default function TrialDetailClient({ data }: { data: TrialDetails }) {
                     <Link
                       key={`${paper.paperid}-${idx}`}
                       href={`/papers/${paper.paperid}`}
-                      className="block py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 -mx-2 px-2 rounded transition-colors"
+                      className="block py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 -mx-2 px-2 rounded-sm transition-colors"
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
                           <div className="font-medium line-clamp-2">{paper.title ? <PaperTitle title={paper.title} /> : "Untitled"}</div>
                           <div className="text-sm text-gray-500 mt-1">{paper.year && <span>{paper.year}</span>}</div>
                         </div>
-                        <div className="text-right flex-shrink-0 tabular-nums">
+                        <div className="text-right shrink-0 tabular-nums">
                           <span className="text-sm text-gray-500">{formatNumber(paper.cited_by_count)} citations</span>
                         </div>
                       </div>
@@ -498,7 +498,7 @@ export default function TrialDetailClient({ data }: { data: TrialDetails }) {
               <CardTitle className="flex items-center gap-2 text-base">
                 <FileText className="h-5 w-5 text-purple-600" />
                 Unknown Papers
-                <span className="px-2 py-0.5 bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 rounded text-sm font-normal">
+                <span className="px-2 py-0.5 bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 rounded-sm text-sm font-normal">
                   {otherPapers.length}
                 </span>
                 <Tooltip>
@@ -520,14 +520,14 @@ export default function TrialDetailClient({ data }: { data: TrialDetails }) {
                     <Link
                       key={`${paper.paperid}-${idx}`}
                       href={`/papers/${paper.paperid}`}
-                      className="block py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 -mx-2 px-2 rounded transition-colors"
+                      className="block py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 -mx-2 px-2 rounded-sm transition-colors"
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
                           <div className="font-medium line-clamp-2">{paper.title ? <PaperTitle title={paper.title} /> : "Untitled"}</div>
                           <div className="text-sm text-gray-500 mt-1">{paper.year && <span>{paper.year}</span>}</div>
                         </div>
-                        <div className="text-right flex-shrink-0 tabular-nums">
+                        <div className="text-right shrink-0 tabular-nums">
                           <span className="text-sm text-gray-500">{formatNumber(paper.cited_by_count)} citations</span>
                         </div>
                       </div>

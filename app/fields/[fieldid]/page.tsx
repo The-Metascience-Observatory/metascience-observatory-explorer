@@ -87,7 +87,7 @@ export default async function FieldDetailPage({ params }: Props) {
             {summary.display_name}
           </h1>
         </div>
-        <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${badgeClass}`}>
+        <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-sm ${badgeClass}`}>
           {isBroad ? "Broad Field" : "Subfield"}
         </span>
       </div>
@@ -128,7 +128,7 @@ export default async function FieldDetailPage({ params }: Props) {
                   <Link
                     key={author.authorid}
                     href={`/persons/${author.authorid}`}
-                    className="flex items-center justify-between p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                    className="flex items-center justify-between p-2 rounded-sm hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                   >
                     <div className="flex items-center gap-3">
                       <span className="text-sm text-gray-400 w-6">{idx + 1}.</span>
@@ -174,7 +174,7 @@ export default async function FieldDetailPage({ params }: Props) {
                   <Link
                     key={paper.paperid}
                     href={`/papers/${paper.paperid}`}
-                    className="block p-2 rounded border border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                    className="block p-2 rounded-sm border border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                   >
                     <div className="flex items-start gap-2">
                       <span className="text-sm text-gray-400 mt-0.5">{idx + 1}.</span>

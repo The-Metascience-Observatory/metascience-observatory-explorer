@@ -114,12 +114,12 @@ function DesignTooltip({
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   return (
-    <div className="rounded border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm">
+    <div className="rounded-sm border border-gray-200 bg-white px-3 py-2 text-sm shadow-xs">
       <div className="font-medium text-gray-900">{label}</div>
       {TIERS.map((t) => (
         <div key={t.key} className="flex items-center gap-1.5 text-gray-600">
           <span
-            className="inline-block h-2 w-2 rounded-sm"
+            className="inline-block h-2 w-2 rounded-xs"
             style={{ backgroundColor: t.color }}
             aria-hidden="true"
           />

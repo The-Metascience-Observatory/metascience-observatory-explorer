@@ -92,14 +92,14 @@ export function PaperListCard({
                   </div>
                   {paper.openaire && (
                     <span
-                      className="flex-shrink-0 px-1.5 py-0.5 text-xs bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200 rounded"
+                      className="shrink-0 px-1.5 py-0.5 text-xs bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200 rounded-sm"
                       title="Paper from the OpenAIRE Graph; citation count from BIP! indicators"
                     >
                       OpenAIRE
                     </span>
                   )}
                   {!paper.unresolved && (
-                    <ArrowUpRight className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                    <ArrowUpRight className="h-4 w-4 text-gray-400 shrink-0" />
                   )}
                 </div>
               );

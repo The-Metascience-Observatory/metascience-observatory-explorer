@@ -13,7 +13,7 @@ export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   return (
-    <nav className="sticky top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 border-b border-gray-200">
+    <nav className="sticky top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm supports-backdrop-filter:bg-white/80 border-b border-gray-200">
       <div className="max-w-5xl mx-auto px-6 py-3">
         <div className="flex items-center justify-between gap-4">
           {/* Points at the Explorer's own homepage. It previously linked to the

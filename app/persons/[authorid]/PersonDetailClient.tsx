@@ -1273,7 +1273,7 @@ export default function PersonDetailClient({
                         <ChevronRight className="h-4 w-4 text-gray-500" />
                       )}
                       <span className="font-medium">{group.funderName}</span>
-                      <span className="px-2 py-0.5 bg-gray-200 dark:bg-gray-600 rounded text-xs">
+                      <span className="px-2 py-0.5 bg-gray-200 dark:bg-gray-600 rounded-sm text-xs">
                         {group.grants.length} grant{group.grants.length !== 1 ? 's' : ''}
                       </span>
                     </div>
@@ -1353,7 +1353,7 @@ export default function PersonDetailClient({
                               </div>
 
                               {/* Paper count */}
-                              <div className="text-right flex-shrink-0">
+                              <div className="text-right shrink-0">
                                 <div className="text-sm text-gray-500 tabular-nums">
                                   {formatNumber(grant.paper_count)} papers
                                 </div>
@@ -1388,7 +1388,7 @@ export default function PersonDetailClient({
                 )}
                 <FlaskConical className="h-5 w-5" />
                 <span className="font-medium">Clinical Trials</span>
-                <span className="px-2 py-0.5 bg-gray-200 dark:bg-gray-600 rounded text-xs">
+                <span className="px-2 py-0.5 bg-gray-200 dark:bg-gray-600 rounded-sm text-xs">
                   {trials.length} trial{trials.length !== 1 ? 's' : ''}
                 </span>
               </div>
@@ -1424,7 +1424,7 @@ export default function PersonDetailClient({
                           </div>
                         )}
                       </div>
-                      <div className="text-right flex-shrink-0">
+                      <div className="text-right shrink-0">
                         <div className="text-sm text-gray-500 tabular-nums">
                           {trial.paper_count} paper{trial.paper_count !== 1 ? 's' : ''}
                         </div>
@@ -1485,7 +1485,7 @@ export default function PersonDetailClient({
                 <a
                   href={`/api/persons/${authorid}/dois`}
                   download
-                  className="ml-2 flex items-center gap-1 px-2 py-1 text-sm rounded text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+                  className="ml-2 flex items-center gap-1 px-2 py-1 text-sm rounded-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
                   title="Download a CSV of the DOIs for all publications"
                 >
                   <Download className="h-4 w-4" />
@@ -1509,7 +1509,7 @@ export default function PersonDetailClient({
               <Link
                 key={`${pub.paperid}-${idx}`}
                 href={`/papers/${pub.paperid}`}
-                className="block py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 -mx-2 px-2 rounded transition-colors"
+                className="block py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 -mx-2 px-2 rounded-sm transition-colors"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
@@ -1523,7 +1523,7 @@ export default function PersonDetailClient({
                       )}
                     </div>
                   </div>
-                  <div className="text-right flex-shrink-0 tabular-nums">
+                  <div className="text-right shrink-0 tabular-nums">
                     <span className="text-sm text-gray-500">
                       {formatNumber(pub.cited_by_count)} citations
                     </span>

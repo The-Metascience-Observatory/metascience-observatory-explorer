@@ -65,7 +65,7 @@ export function FieldsList() {
             <Link
               key={field.fieldid}
               href={`/fields/${field.fieldid}`}
-              className="px-2 py-0.5 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 transition-colors"
+              className="px-2 py-0.5 text-xs bg-blue-50 text-blue-700 rounded-sm hover:bg-blue-100 transition-colors"
             >
               {field.display_name}
             </Link>
@@ -83,7 +83,7 @@ export function FieldsList() {
             <Link
               key={field.fieldid}
               href={`/fields/${field.fieldid}`}
-              className="px-2 py-0.5 text-xs bg-purple-50 text-purple-700 rounded hover:bg-purple-100 transition-colors"
+              className="px-2 py-0.5 text-xs bg-purple-50 text-purple-700 rounded-sm hover:bg-purple-100 transition-colors"
             >
               {field.display_name}
             </Link>
