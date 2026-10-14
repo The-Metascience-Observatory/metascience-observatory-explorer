@@ -3,6 +3,7 @@ import { searchCaches, generateCacheKey } from "@/lib/search-cache";
 import { workerQuery, openaireWorkerQuery, getOpenaireWorkerPool } from "@/lib/worker-pool";
 import { getOpenaireCitationsDb } from "@/lib/db";
 import { errorResponse } from "@/lib/api-utils";
+import { isLocalRequest } from "@/lib/local-request";
 
 /**
  * Cache warming endpoint - preloads common searches into memory
@@ -114,20 +115,11 @@ async function warmOpenairePapers(
  * module-level in-flight promise, because the `searchCaches.has()` checks inside
  * do not stop concurrent callers from all missing and all executing.
  */
-function isLocalCall(request: Request): boolean {
-  // Behind the Cloudflare tunnel cf-connecting-ip is always set (see the comment
-  // at middleware.ts:27), so its absence means the request did not come in over
-  // the tunnel. x-forwarded-for covers any other proxy in front.
-  //
-  // Deliberately NOT checking the Host header: a route handler does not see it
-  // reliably, and gating on it 404'd the legitimate local caller.
-  return !request.headers.get("cf-connecting-ip") && !request.headers.get("x-forwarded-for");
-}
 
 let inFlight: Promise<NextResponse> | null = null;
 
 export async function POST(request: Request) {
-  if (!isLocalCall(request)) {
+  if (!isLocalRequest(request.headers)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   if (inFlight) return inFlight;
