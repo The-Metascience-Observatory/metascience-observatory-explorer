@@ -55,7 +55,7 @@ export function OpenAccessBadges({ info }: { info: OpenairePaperInfo }) {
       {badges.map((b) => (
         <span
           key={b.key}
-          className={`px-2 py-1 text-xs font-medium rounded ${b.className}`}
+          className={`px-2 py-1 text-xs font-medium rounded-sm ${b.className}`}
           title="Open-access status from the OpenAIRE Graph"
         >
           {b.label}
@@ -162,7 +162,7 @@ function BipPill({ cls }: { cls: BipClass | null }) {
   const { label, className } = BIP_CLASS[cls];
   return (
     <span
-      className={`inline-block px-1.5 py-0.5 text-xs font-medium rounded ${className}`}
+      className={`inline-block px-1.5 py-0.5 text-xs font-medium rounded-sm ${className}`}
       title={`BIP! impact class ${cls}`}
     >
       {label}
@@ -214,7 +214,7 @@ export function OpenaireImpactSection({
             title={m.help}
           >
             <div className="text-xs text-gray-500">{m.label}</div>
-            <div className="text-xs text-gray-400 leading-tight h-[1.5rem] flex items-end">
+            <div className="text-xs text-gray-400 leading-tight h-6 flex items-end">
               {fmtScore(impact[m.key])}
             </div>
             <div className="mt-1">

@@ -171,7 +171,7 @@ function FundersSearchContent() {
 
                 <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
                   {funder.country_code && (
-                    <span className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded">
+                    <span className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded-sm">
                       {funder.country_code}
                     </span>
                   )}

@@ -11,7 +11,7 @@ interface ListItemLinkProps {
  * Used for clickable items in lists (trials, patents, media mentions, papers, etc.)
  */
 export function ListItemLink({ href, children, external }: ListItemLinkProps) {
-  const className = "block p-2 bg-gray-50 dark:bg-gray-800 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors";
+  const className = "block p-2 bg-gray-50 dark:bg-gray-800 rounded-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors";
 
   if (external) {
     return (

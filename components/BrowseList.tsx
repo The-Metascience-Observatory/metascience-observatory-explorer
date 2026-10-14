@@ -83,7 +83,7 @@ export function Pagination({
     pages.push(p);
   }
 
-  const link = "px-2.5 py-1 rounded text-sm hover:bg-gray-100 dark:hover:bg-gray-800";
+  const link = "px-2.5 py-1 rounded-sm text-sm hover:bg-gray-100 dark:hover:bg-gray-800";
 
   return (
     <nav className="flex flex-wrap items-center gap-1 mt-6" aria-label="Pagination">
@@ -107,7 +107,7 @@ export function Pagination({
           aria-current={p === page ? "page" : undefined}
           className={
             p === page
-              ? "px-2.5 py-1 rounded text-sm bg-blue-600 text-white"
+              ? "px-2.5 py-1 rounded-sm text-sm bg-blue-600 text-white"
               : link
           }
         >

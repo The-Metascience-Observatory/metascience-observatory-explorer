@@ -280,7 +280,7 @@ export default function AnalyticsPage() {
                             <a
                               key={i}
                               href={page}
-                              className="inline-block px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-xs text-blue-600 hover:text-blue-800 hover:underline truncate max-w-[200px]"
+                              className="inline-block px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-sm text-xs text-blue-600 hover:text-blue-800 hover:underline truncate max-w-[200px]"
                               title={page}
                             >
                               {page}
@@ -455,7 +455,7 @@ export default function AnalyticsPage() {
                   className="flex items-center justify-between py-2 border-b dark:border-gray-800"
                 >
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <span className="text-gray-400 text-sm w-6 flex-shrink-0">{idx + 1}.</span>
+                    <span className="text-gray-400 text-sm w-6 shrink-0">{idx + 1}.</span>
                     <a
                       href={page.path}
                       className="truncate text-sm text-blue-600 hover:text-blue-800 hover:underline"

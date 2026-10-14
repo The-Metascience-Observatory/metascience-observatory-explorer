@@ -242,7 +242,7 @@ export default function OpenairePaperPage() {
           {/* Badges */}
           <div className="flex flex-wrap gap-2">
             {summary.type && (
-              <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200 rounded capitalize">
+              <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200 rounded-sm capitalize">
                 {summary.type}
               </span>
             )}
@@ -357,7 +357,7 @@ export default function OpenairePaperPage() {
               href={`https://doi.org/${summary.doi}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded hover:bg-blue-200 dark:hover:bg-blue-800"
+              className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded-sm hover:bg-blue-200 dark:hover:bg-blue-800"
             >
               DOI: {summary.doi} <ExternalLink className="h-3 w-3" />
             </a>
@@ -366,7 +366,7 @@ export default function OpenairePaperPage() {
                 href={`https://pubmed.ncbi.nlm.nih.gov/${summary.pmid}/`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded hover:bg-green-200 dark:hover:bg-green-800"
+                className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded-sm hover:bg-green-200 dark:hover:bg-green-800"
               >
                 PMID: {summary.pmid} <ExternalLink className="h-3 w-3" />
               </a>

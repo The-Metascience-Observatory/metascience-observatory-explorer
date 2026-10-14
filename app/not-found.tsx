@@ -34,7 +34,7 @@ export default function NotFound() {
           <li key={href}>
             <Link
               href={href}
-              className="block rounded-lg border border-gray-200 p-4 hover:border-blue-400 hover:shadow-sm transition-all"
+              className="block rounded-lg border border-gray-200 p-4 hover:border-blue-400 hover:shadow-xs transition-all"
             >
               <span className="block font-semibold text-blue-700">{label}</span>
               <span className="block text-sm text-gray-500">{blurb}</span>
