@@ -27,5 +27,22 @@ jobs:
 
       - run: npm test
 
+      # Gate on what actually ships. Production dependencies must stay clean;
+      # this fails the build if any advisory reaches them.
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=low
+
+      # Dev tooling is reported but not gated. As of 2026-10-14 five advisories
+      # sit in eslint-config-next -> @next/eslint-plugin-next -> fast-glob ->
+      # micromatch -> braces, and none of them has a patched release in
+      # existence: the braces advisory covers <=3.0.3 and 3.0.3 is the newest
+      # published version, micromatch's covers >=0.2.0 against a newest of
+      # 4.0.8, and fast-glob's covers every version. They are glob-pattern DoS
+      # issues in a linter, reachable only by someone who already controls the
+      # lint globs. Re-check this step's output periodically: when upstream
+      # publishes fixes, drop the `|| true` and gate on it.
+      - name: Audit all dependencies (informational)
+        run: npm audit || true
+
       # Deliberately no `next build`: it prerenders API routes that open the
       # SQLite files in data/, which are ~2 TB and are not in the repo.
