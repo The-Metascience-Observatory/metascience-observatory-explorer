@@ -90,3 +90,16 @@ Open [http://localhost:3000](http://localhost:3000) to view the dashboard.
 
 - Lin, Z., Yin, Y., Liu, L., & Wang, D. (2023). SciSciNet: A large-scale open data lake for the science of science research. *Scientific Data*, 10, 315. https://doi.org/10.1038/s41597-023-02198-9
 - Manghi, P., Atzori, C., Bardi, A., et al. OpenAIRE Graph Dataset (v11.1.1). *Zenodo*. https://doi.org/10.5281/zenodo.3516917 — used under CC-BY 4.0.
+
+## License
+
+Copyright (c) 2026 Dan Elton. All rights reserved. This repository is public
+for transparency, not for reuse — see [LICENSE](LICENSE). No permission is
+granted to use, copy, modify or distribute it without written permission.
+
+Interested in using this work? Licensing requests are welcome:
+dan@metascienceobservatory.org
+
+The datasets this dashboard reads are **not** redistributed here and remain
+under their own licenses (see Data Sources above). Obtain them from their
+original providers; some, including Scopus, prohibit redistribution.

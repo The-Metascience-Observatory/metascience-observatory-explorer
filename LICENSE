@@ -1,0 +1,41 @@
+Copyright (c) 2026 Dan Elton. All rights reserved.
+
+PROPRIETARY — NO LICENSE GRANTED
+
+This repository is made publicly viewable for transparency. Publication does
+not grant any license to it. No permission is given to use, copy, modify,
+merge, publish, distribute, sublicense, create derivative works from, or sell
+any part of this software, in source or compiled form, except as expressly
+permitted in writing by the copyright holder.
+
+If you are interested in using this work — commercially, academically, or
+otherwise — please get in touch. Licensing requests are welcome:
+
+    Dan Elton <dan@metascienceobservatory.org>
+
+THIRD-PARTY DATA AND DEPENDENCIES
+
+The copyright claim above covers only the source code and documentation
+authored in this repository. It does not extend to the datasets this software
+reads, indexes, or displays, nor to its third-party dependencies, each of which
+remains under its own terms and its own owners' rights. Those include, among
+others, the SciSciNet-V2 data lake, the OpenAIRE Graph (CC-BY), BIP! impact
+indicators, Retraction Watch, MeSH, PubMed, ClinicalTrials.gov, Crossref,
+OpenAlex, ROR, DOAJ, ORCID, Wikidata, and Scopus. None of those datasets are
+redistributed here. Anyone obtaining them must do so from the original
+providers and comply with the providers' licenses, which in some cases prohibit
+redistribution.
+
+Primary dataset citation:
+
+    Lin, Z., Yin, Y., Liu, L. et al. SciSciNet: A large-scale open data lake
+    for the science of science research. Sci Data 10, 315 (2023).
+
+NO WARRANTY
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
