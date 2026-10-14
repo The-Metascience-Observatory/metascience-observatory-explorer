@@ -114,18 +114,20 @@ async function warmOpenairePapers(
  * module-level in-flight promise, because the `searchCaches.has()` checks inside
  * do not stop concurrent callers from all missing and all executing.
  */
-function isLoopback(request: Request): boolean {
-  const host = request.headers.get("host") ?? "";
-  if (!/^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(host)) return false;
-  // Behind Cloudflare these are always set, so their presence means the request
-  // arrived over the tunnel rather than from the box itself.
+function isLocalCall(request: Request): boolean {
+  // Behind the Cloudflare tunnel cf-connecting-ip is always set (see the comment
+  // at middleware.ts:27), so its absence means the request did not come in over
+  // the tunnel. x-forwarded-for covers any other proxy in front.
+  //
+  // Deliberately NOT checking the Host header: a route handler does not see it
+  // reliably, and gating on it 404'd the legitimate local caller.
   return !request.headers.get("cf-connecting-ip") && !request.headers.get("x-forwarded-for");
 }
 
 let inFlight: Promise<NextResponse> | null = null;
 
 export async function POST(request: Request) {
-  if (!isLoopback(request)) {
+  if (!isLocalCall(request)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   if (inFlight) return inFlight;
@@ -133,6 +135,13 @@ export async function POST(request: Request) {
     inFlight = null;
   });
   return inFlight;
+}
+
+// scripts/start-with-cache.sh warms via fetch() with no method, i.e. GET, so the
+// alias has to stay — but it is gated exactly like POST now, rather than being
+// the open "allow GET for easy testing" door it was.
+export async function GET(request: Request) {
+  return POST(request);
 }
 
 async function warmCaches(): Promise<NextResponse> {
