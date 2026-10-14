@@ -30,8 +30,27 @@ npm run test:watch   # Vitest in watch mode
 Tests live beside their module as `lib/*.test.ts` and cover **pure functions
 only** — nothing that opens a database, since the SQLite files are ~2 TB and
 absent in CI. [.github/workflows/ci.yml](.github/workflows/ci.yml) runs lint,
-`tsc --noEmit` and the tests on every push; it deliberately does not run
-`next build`, which would need those data files.
+`tsc --noEmit`, the tests and a production dependency audit on every push; it
+deliberately does not run `next build`, which would need those data files.
+
+Linting runs ESLint directly (`eslint .`). `next lint` was removed in Next 16,
+which also means [eslint.config.mjs](eslint.config.mjs) must state its own
+ignore list — otherwise `eslint .` walks `.next/` and `data/`.
+
+### Dependency audit policy
+
+**Production dependencies must audit clean**, and CI fails if they don't
+(`npm audit --omit=dev --audit-level=low`).
+
+Dev tooling is reported but not gated. Five advisories currently sit in
+`eslint-config-next` → `@next/eslint-plugin-next` → `fast-glob` →
+`micromatch` → `braces`, and **none has a patched release in existence** — the
+`braces` advisory covers `<=3.0.3` while 3.0.3 is the newest published
+version, and `fast-glob`'s covers every version. They are glob-pattern DoS
+issues inside a linter, so exploiting one means already controlling the lint
+globs. The only way to reach zero is to drop `eslint-config-next` entirely and
+lose Next's lint rules, which is a worse trade. Re-check when upstream
+publishes fixes.
 
 If `better-sqlite3` segfaults at startup, run `npm rebuild better-sqlite3` — the prebuilt native binary can go stale after Node/system updates.
 
