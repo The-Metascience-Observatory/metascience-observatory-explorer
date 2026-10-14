@@ -202,7 +202,15 @@ function PapersSearchContent() {
       {/* Results count */}
       {submittedQuery && !loading && !indexMissing && (
         <div className="mb-4">
-          {total > 0 ? (
+          {/* The route sends total: -1 for "more pages exist, exact count
+              unknown" (app/api/papers/search/route.ts). That failed the
+              `total > 0` test, so every multi-page search — the common case —
+              rendered "No papers found" directly above a full page of results. */}
+          {total === -1 ? (
+            <p className="text-gray-600">
+              Showing the most-cited papers matching &quot;{submittedQuery}&quot;
+            </p>
+          ) : total > 0 ? (
             <p className="text-gray-600">
               Found <span className="font-semibold">{total.toLocaleString()}</span> papers
               matching &quot;{submittedQuery}&quot;

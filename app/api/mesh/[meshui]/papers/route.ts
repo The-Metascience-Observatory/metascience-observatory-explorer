@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getMeshDb, getDb } from "@/lib/db";
-import { errorResponse } from "@/lib/api-utils";
+import { errorResponse, parsePagination } from "@/lib/api-utils";
+import { meshWorkerQuery, workerQuery } from "@/lib/worker-pool";
 
 interface PaperRow {
   paperid: string;
@@ -15,49 +15,50 @@ export async function GET(
   { params }: { params: Promise<{ meshui: string }> }
 ) {
   const { meshui } = await params;
-  const { searchParams } = new URL(request.url);
-  const offset = Math.max(0, parseInt(searchParams.get("offset") || "0", 10));
-  const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "50", 10)));
+  const { offset, limit } = parsePagination(request.nextUrl.searchParams, { limit: 50 });
 
   try {
-    const meshDb = getMeshDb();
-    const journalsDb = getDb();
-
-    if (!meshDb || !journalsDb) {
-      return NextResponse.json({ papers: [], hasMore: false });
-    }
-
-    // Get random PMIDs for this MeSH term, then lookup paper IDs
-    // Using RANDOM() for randomness, with offset/limit for pagination
-    // Note: For true randomness on each page load, we'd need a seed
-    const pmidRows = meshDb
-      .prepare(
-        `SELECT DISTINCT p.paperid
+    // Index order, deliberately unsorted.
+    //
+    // This previously ran `ORDER BY RANDOM()` with DISTINCT, which forces SQLite
+    // to materialise and sort every matching row before returning the first.
+    // "Humans" (D006801) matches 22,445,201 rows, so a single request sorted 22M
+    // rows — and it ran on the synchronous main-thread handle, freezing the whole
+    // event loop. Measured: the query below returns in ~0ms for that descriptor
+    // because both indexes are used and LIMIT stops the scan early.
+    //
+    // Dropping the random order also fixes pagination. RANDOM() is re-evaluated
+    // per statement, so page 2 was an independent sample rather than a
+    // continuation: scrolling repeated and skipped papers and produced duplicate
+    // React keys. Index order is stable across requests, so pages now compose.
+    const pmidRows = await meshWorkerQuery<{ paperid: string }>(
+      `SELECT p.paperid
          FROM pmid_mesh m
          JOIN paperid_pmid p ON m.pmid = p.pmid
-         WHERE m.mesh_ui = ?
-         ORDER BY RANDOM()
-         LIMIT ? OFFSET ?`
-      )
-      .all(meshui, limit + 1, offset) as { paperid: string }[];
+        WHERE m.mesh_ui = ?
+        LIMIT ? OFFSET ?`,
+      meshui,
+      limit + 1,
+      offset
+    );
 
     const hasMore = pmidRows.length > limit;
-    const paperIds = pmidRows.slice(0, limit).map((r) => r.paperid);
+    // paperid_pmid has no uniqueness constraint, so dedupe within the page
+    // rather than paying for a DISTINCT over the whole match set.
+    const paperIds = [...new Set(pmidRows.slice(0, limit).map((r) => r.paperid))];
 
     if (paperIds.length === 0) {
       return NextResponse.json({ papers: [], hasMore: false });
     }
 
-    // Get paper details from journals.db
     const placeholders = paperIds.map(() => "?").join(",");
-    const papers = journalsDb
-      .prepare(
-        `SELECT paperid, title, year, cited_by_count, source_name
+    const papers = await workerQuery<PaperRow>(
+      `SELECT paperid, title, year, cited_by_count, source_name
          FROM paper_summary
-         WHERE paperid IN (${placeholders})
-         ORDER BY cited_by_count DESC`
-      )
-      .all(...paperIds) as PaperRow[];
+        WHERE paperid IN (${placeholders})
+        ORDER BY cited_by_count DESC`,
+      ...paperIds
+    );
 
     return NextResponse.json({
       papers: papers.map((p) => ({
@@ -67,6 +68,8 @@ export async function GET(
         citedByCount: p.cited_by_count,
         sourceName: p.source_name,
       })),
+      // Reported against the mesh window, not the resolved rows: a paperid
+      // missing from paper_summary must not look like the end of the list.
       hasMore,
     });
   } catch (error) {

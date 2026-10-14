@@ -65,11 +65,17 @@ function getGenericErrorMessage(status: number): string {
  */
 export function parsePagination(
   searchParams: URLSearchParams,
-  defaults: { limit?: number; maxLimit?: number } = {}
+  defaults: { limit?: number; maxLimit?: number; maxOffset?: number } = {}
 ): { offset: number; limit: number } {
-  const { limit: defaultLimit = 50, maxLimit = 100 } = defaults;
+  const { limit: defaultLimit = 50, maxLimit = 100, maxOffset = 10_000 } = defaults;
 
-  const offset = Math.max(0, parseInt(searchParams.get("offset") || "0", 10) || 0);
+  // Offset is capped, not just floored. A deep offset defeats SQLite's bounded
+  // sorter and is a guaranteed cache miss (the key includes offset), so an
+  // uncapped value is a cheap way to make every request expensive.
+  const offset = Math.min(
+    maxOffset,
+    Math.max(0, parseInt(searchParams.get("offset") || "0", 10) || 0)
+  );
   const limit = Math.min(
     maxLimit,
     Math.max(1, parseInt(searchParams.get("limit") || String(defaultLimit), 10) || defaultLimit)
