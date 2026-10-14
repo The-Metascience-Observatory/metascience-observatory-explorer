@@ -12,16 +12,42 @@ let openaireDb: Database.Database | null = null;
 let openaireAbstractsDb: Database.Database | null = null;
 let openaireCitationsDb: Database.Database | null = null;
 
+/**
+ * True while `next build` is running.
+ *
+ * Next sets NEXT_PHASE=phase-production-build during a build; SQLITE_SMALL_CACHE=1
+ * forces the same behaviour by hand, for any other memory-constrained context
+ * such as a container with a low limit.
+ */
+export function isBuildPhase(): boolean {
+  return (
+    process.env.NEXT_PHASE === "phase-production-build" ||
+    process.env.SQLITE_SMALL_CACHE === "1"
+  );
+}
+
 export function getDb(): Database.Database {
   if (!db) {
     const dbPath = path.join(process.cwd(), "data", "journals.db");
     db = new Database(dbPath, { readonly: true, fileMustExist: true });
 
-    // Performance tuning for 24GB+ RAM systems
-    // Allocate 8GB cache for this database (1/3 of available RAM)
-    db.pragma('cache_size = -8000000'); // Negative = KB, so -8000000 = 8GB
-    db.pragma('mmap_size = 8589934592'); // 8GB memory-mapped I/O
-    db.pragma('temp_store = MEMORY'); // Use RAM for temporary tables
+    // Performance tuning for 24GB+ RAM systems.
+    //
+    // These are serving-time numbers. `next build` evaluates route modules,
+    // which opens this handle and every worker pool inside one process; at full
+    // size that committed ~18GB of page cache plus mmap plus in-RAM temp
+    // storage on top of Turbopack, and the build was OOM-killed at 59GB RSS.
+    // A build gains nothing from a warm cache, so it gets small values.
+    if (isBuildPhase()) {
+      db.pragma('cache_size = -262144'); // 256MB
+      db.pragma('mmap_size = 0');
+      db.pragma('temp_store = FILE');
+    } else {
+      // Allocate 8GB cache for this database (1/3 of available RAM)
+      db.pragma('cache_size = -8000000'); // Negative = KB, so -8000000 = 8GB
+      db.pragma('mmap_size = 8589934592'); // 8GB memory-mapped I/O
+      db.pragma('temp_store = MEMORY'); // Use RAM for temporary tables
+    }
     db.pragma('synchronous = NORMAL'); // Faster with acceptable safety (readonly anyway)
     db.pragma('journal_mode = WAL'); // Better concurrency
   }
