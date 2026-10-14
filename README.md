@@ -72,9 +72,9 @@ Built on the [SciSciNet](https://github.com/kellogg-cssi/SciSciNet) open data la
 
 ## Tech Stack
 
-- **Framework**: Next.js 15 (React 18)
+- **Framework**: Next.js 16 (React 18)
 - **Database**: SQLite (better-sqlite3) - 1.5TB+ research data
-- **Styling**: Tailwind CSS
+- **Styling**: Tailwind CSS 4
 - **Visualization**: D3.js, Recharts
 
 ## Getting Started
