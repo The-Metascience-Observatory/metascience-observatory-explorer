@@ -19,7 +19,8 @@ Citation: Lin, Z., Yin, Y., Liu, L. et al. *SciSciNet: A large-scale open data l
 
 ```bash
 npm run dev          # Next.js dev server (hot reload)
-npm run build        # Production build
+npm run build        # Production build (webpack)
+npm run build:turbopack  # Production build with Turbopack — see the note below
 npm start            # Prod server + cache warming (runs scripts/start-with-cache.sh)
 npm run start:no-warm # Prod server without cache warming
 npm run warm-cache   # Manual cache warming (curl /api/cache/warm)
@@ -52,6 +53,14 @@ issues inside a linter, so exploiting one means already controlling the lint
 globs. The only way to reach zero is to drop `eslint-config-next` entirely and
 lose Next's lint rules, which is a worse trade. Re-check when upstream
 publishes fixes.
+
+**Build with webpack, not Turbopack.** Next 16 makes Turbopack the default
+builder, and on this project it climbs past 45 GB RSS and gets OOM-killed; the
+webpack build compiles in ~17s at 0.4 GB. `npm run build` therefore passes
+`--webpack` explicitly. Relatedly, the SQLite pragmas in `lib/db.ts` and
+`lib/db-worker.js` scale down when `NEXT_PHASE=phase-production-build`, because
+`next build` evaluates route modules and would otherwise open ~18 GB of page
+cache in the build process.
 
 If `better-sqlite3` segfaults at startup, run `npm rebuild better-sqlite3` — the prebuilt native binary can go stale after Node/system updates.
 
