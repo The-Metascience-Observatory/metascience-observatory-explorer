@@ -155,21 +155,6 @@ export function Footer() {
             ))}
           </Column>
         </div>
-
-        <div className="mt-10 pt-6 border-t border-gray-200 text-xs text-gray-500">
-          <p>
-            Built on the SciSciNet-V2 data lake. Lin, Z., Yin, Y., Liu, L. et al.{" "}
-            <em>
-              SciSciNet: A large-scale open data lake for the science of science
-              research.
-            </em>{" "}
-            Sci Data 10, 315 (2023). See{" "}
-            <Link href="/about" className="underline hover:text-blue-700">
-              about
-            </Link>{" "}
-            for full sources and licences.
-          </p>
-        </div>
       </div>
     </footer>
   );
