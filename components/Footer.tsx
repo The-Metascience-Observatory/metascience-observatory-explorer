@@ -1,6 +1,11 @@
 import Link from "next/link";
+import { ExternalLink } from "lucide-react";
 import { TOP_LEVEL_FIELDS } from "@/lib/field-hierarchy";
 import { ORG_NAME, ORG_URL } from "@/lib/site";
+
+/** Level-0 fields left out of the footer to keep the column focused. */
+const FOOTER_FIELD_EXCLUDES = new Set(["Art", "Business", "Geography", "History", "Philosophy"]);
+const footerFields = TOP_LEVEL_FIELDS.filter((f) => !FOOTER_FIELD_EXCLUDES.has(f.name));
 
 /**
  * Site-wide footer. This is a server component on purpose — it is the only
@@ -27,7 +32,6 @@ const rankings: Array<[string, string]> = [
 ];
 
 const observatory: Array<[string, string]> = [
-  [ORG_NAME, ORG_URL],
   ["Docs", `${ORG_URL}/docs`],
   ["Bird's-Eye Reviews", `${ORG_URL}/birds-eye-reviews`],
   ["Replications Database", `${ORG_URL}/replications-database`],
@@ -45,15 +49,29 @@ const sources: Array<[string, string]> = [
 
 function Column({
   title,
+  href,
   children,
 }: {
   title: string;
+  /** Optional URL the column heading links to: an internal route or an external site. */
+  href?: string;
   children: React.ReactNode;
 }) {
+  const headingClass = "hover:text-blue-700 hover:underline";
   return (
     <div>
       <h2 className="font-clarendon text-sm font-bold text-gray-900 mb-3">
-        {title}
+        {href === undefined ? (
+          title
+        ) : href.startsWith("/") ? (
+          <Link href={href} className={headingClass}>
+            {title}
+          </Link>
+        ) : (
+          <a href={href} className={headingClass} rel="noopener">
+            {title}
+          </a>
+        )}
       </h2>
       <ul className="space-y-1.5 text-sm">{children}</ul>
     </div>
@@ -70,15 +88,27 @@ function Internal({ href, label }: { href: string; label: string }) {
   );
 }
 
-function External({ href, label }: { href: string; label: string }) {
+function External({
+  href,
+  label,
+  marked = false,
+}: {
+  href: string;
+  label: string;
+  /** Show an external-link icon after the label. */
+  marked?: boolean;
+}) {
   return (
     <li>
       <a
         href={href}
-        className="text-gray-600 hover:text-blue-700 hover:underline"
+        className="inline-flex items-center gap-1 text-gray-600 hover:text-blue-700 hover:underline"
         rel="noopener"
       >
         {label}
+        {marked && (
+          <ExternalLink className="h-3 w-3 text-gray-400 shrink-0" aria-hidden="true" />
+        )}
       </a>
     </li>
   );
@@ -101,9 +131,9 @@ export function Footer() {
             ))}
           </Column>
 
-          {/* 19 sitewide links straight into the field taxonomy. */}
-          <Column title="Research fields">
-            {TOP_LEVEL_FIELDS.map((field) => (
+          {/* Sitewide links straight into the field taxonomy. */}
+          <Column title="Research fields" href="/fields">
+            {footerFields.map((field) => (
               <Internal
                 key={field.fieldid}
                 href={`/fields/${field.fieldid}`}
@@ -112,7 +142,7 @@ export function Footer() {
             ))}
           </Column>
 
-          <Column title={ORG_NAME}>
+          <Column title={ORG_NAME} href={ORG_URL}>
             {observatory.map(([label, href]) => (
               <External key={href} href={href} label={label} />
             ))}
@@ -121,7 +151,7 @@ export function Footer() {
           <Column title="Data & credits">
             <Internal href="/about" label="About the Explorer" />
             {sources.map(([label, href]) => (
-              <External key={href} href={href} label={label} />
+              <External key={href} href={href} label={label} marked />
             ))}
           </Column>
         </div>

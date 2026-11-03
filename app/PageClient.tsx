@@ -75,8 +75,8 @@ export default function HomePage() {
       {/* About section */}
       <div className="text-sm text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
         <p className="mb-3">
-          The primary source of data for the Metascience Observatory Explorer is the 2025
-           <a href="https://northwestern-cssi.github.io/sciscinet/" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">
+          The primary source of data for the Metascience Observatory Explorer is the 2025{" "}
+          <a href="https://northwestern-cssi.github.io/sciscinet/" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">
             SciSciNet-V2 dataset
           </a>
           . If you find this explorer useful for your work, make sure to acknowledge and cite the{" "}
