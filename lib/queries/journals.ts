@@ -1,5 +1,6 @@
 import { cache } from "react";
-import { getDb, getRetractionsDb } from "@/lib/db";
+import { getRetractionsDb } from "@/lib/db";
+import { workerQuery, workerQueryOne } from "@/lib/worker-pool";
 import { fetchScopusCiteScore } from "@/lib/scopus";
 import type {
   JournalDetails,
@@ -18,19 +19,18 @@ import type {
  * Read paths for journal_summary and its many satellite tables.
  * See lib/queries/mesh.ts for the contract.
  *
- * NOTE these still use the synchronous getDb() handle rather than the worker
- * pool. Unlike the other entity modules this one fans out across ~8 small
- * indexed lookups plus three optional databases, and moving it wholesale is a
- * larger change than this pass warrants; journal_summary lookups are indexed
- * and fast. Revisit if journal pages show up as a latency outlier.
+ * Every journals.db read goes through the worker pool so a crawl of journal
+ * pages cannot block the main thread (see the note in lib/queries/papers.ts).
+ * Only the small retractions.db lookup stays synchronous.
  */
 
 /** Indexed single-row lookup — safe for generateMetadata. */
 export const getJournalSummary = cache(
   async (sourceid: string): Promise<JournalSummary | null> =>
-    (getDb()
-      .prepare("SELECT * FROM journal_summary WHERE sourceid = ?")
-      .get(sourceid) as JournalSummary | undefined) ?? null
+    (await workerQueryOne<JournalSummary>(
+      "SELECT * FROM journal_summary WHERE sourceid = ?",
+      sourceid
+    )) ?? null
 );
 
 /**
@@ -42,39 +42,35 @@ export const getJournalSummary = cache(
  */
 export const getJournalDetails = cache(
   async (sourceid: string, includeScopus = false): Promise<JournalDetails | null> => {
-  const db = getDb();
   try {
   // Get journal summary
-  const summary = db
-    .prepare(
-      `SELECT * FROM journal_summary WHERE sourceid = ?`
-    )
-    .get(sourceid) as JournalSummary | undefined;
+  const summary = await workerQueryOne<JournalSummary>(
+    `SELECT * FROM journal_summary WHERE sourceid = ?`,
+    sourceid
+  );
 
   if (!summary) return null;
 
   // Get yearly statistics
-  const yearlyStats = db
-    .prepare(
-      `SELECT sourceid, year, paper_count, total_citations
-       FROM journal_yearly_stats
-       WHERE sourceid = ?
-       ORDER BY year`
-    )
-    .all(sourceid) as JournalYearlyStats[];
+  const yearlyStats = await workerQuery<JournalYearlyStats>(
+    `SELECT sourceid, year, paper_count, total_citations
+     FROM journal_yearly_stats
+     WHERE sourceid = ?
+     ORDER BY year`,
+    sourceid
+  );
 
   // Get field associations
   let fields: JournalField[] = [];
   try {
-    fields = db
-      .prepare(
-        `SELECT sourceid, fieldid, field_name, level, paper_count, score_sum
-         FROM journal_fields
-         WHERE sourceid = ?
-         ORDER BY paper_count DESC
-         LIMIT 20`
-      )
-      .all(sourceid) as JournalField[];
+    fields = await workerQuery<JournalField>(
+      `SELECT sourceid, fieldid, field_name, level, paper_count, score_sum
+       FROM journal_fields
+       WHERE sourceid = ?
+       ORDER BY paper_count DESC
+       LIMIT 20`,
+      sourceid
+    );
   } catch {
     // journal_fields table might not exist if --skip-fields was used
     console.log("journal_fields table not found, skipping");
@@ -83,16 +79,15 @@ export const getJournalDetails = cache(
   // Get computed impact factors
   let impactFactors: JournalImpactFactor[] = [];
   try {
-    impactFactors = db
-      .prepare(
-        `SELECT sourceid, year, citations_2yr, papers_2yr, impact_factor_2yr,
-                citations_5yr, papers_5yr, impact_factor_5yr,
-                citations_citescore, papers_citescore, citescore
-         FROM journal_impact_factors
-         WHERE sourceid = ?
-         ORDER BY year`
-      )
-      .all(sourceid) as JournalImpactFactor[];
+    impactFactors = await workerQuery<JournalImpactFactor>(
+      `SELECT sourceid, year, citations_2yr, papers_2yr, impact_factor_2yr,
+              citations_5yr, papers_5yr, impact_factor_5yr,
+              citations_citescore, papers_citescore, citescore
+       FROM journal_impact_factors
+       WHERE sourceid = ?
+       ORDER BY year`,
+      sourceid
+    );
   } catch {
     // journal_impact_factors table might not exist yet
     console.log("journal_impact_factors table not found, skipping");
@@ -177,19 +172,20 @@ export const getJournalDetails = cache(
   // Get hijacked journal info from Retraction Watch
   let hijackedInfo: HijackedJournalInfo | undefined;
   try {
-    const hijackedRow = db.prepare(`
-      SELECT hijacked_title, hijacked_url, hijacked_issn,
-             original_title, original_issn, original_url
-      FROM hijacked_journals
-      WHERE sourceid = ?
-    `).get(sourceid) as {
+    const hijackedRow = await workerQueryOne<{
       hijacked_title: string;
       hijacked_url: string | null;
       hijacked_issn: string | null;
       original_title: string | null;
       original_issn: string | null;
       original_url: string | null;
-    } | undefined;
+    }>(
+      `SELECT hijacked_title, hijacked_url, hijacked_issn,
+              original_title, original_issn, original_url
+       FROM hijacked_journals
+       WHERE sourceid = ?`,
+      sourceid
+    );
 
     if (hijackedRow) {
       hijackedInfo = {
@@ -209,16 +205,7 @@ export const getJournalDetails = cache(
   // Get enrichment data from Scopus/DOAJ
   let enrichment: JournalEnrichment | undefined;
   try {
-    const enrichmentRow = db.prepare(`
-      SELECT scopus_source_id, publisher_scopus, license_type,
-             apc_amount, apc_currency, apc_year, languages,
-             is_discontinued, discontinued_for_quality,
-             asjc_codes, lcc_codes, subjects_doaj, data_source,
-             eissn, coverage, source_type, is_medline, articles_in_press,
-             title_history, related_titles, top_level_categories
-      FROM journal_enrichment
-      WHERE sourceid = ?
-    `).get(sourceid) as {
+    const enrichmentRow = await workerQueryOne<{
       scopus_source_id: string | null;
       publisher_scopus: string | null;
       license_type: string | null;
@@ -240,7 +227,17 @@ export const getJournalDetails = cache(
       title_history: string | null;
       related_titles: string | null;
       top_level_categories: string | null;
-    } | undefined;
+    }>(
+      `SELECT scopus_source_id, publisher_scopus, license_type,
+              apc_amount, apc_currency, apc_year, languages,
+              is_discontinued, discontinued_for_quality,
+              asjc_codes, lcc_codes, subjects_doaj, data_source,
+              eissn, coverage, source_type, is_medline, articles_in_press,
+              title_history, related_titles, top_level_categories
+       FROM journal_enrichment
+       WHERE sourceid = ?`,
+      sourceid
+    );
 
     if (enrichmentRow) {
       enrichment = {
@@ -276,17 +273,18 @@ export const getJournalDetails = cache(
   // Get predatory journal info from Beall's List
   let predatoryInfo: PredatoryInfo | undefined;
   try {
-    const predRow = db.prepare(`
-      SELECT predatory_source, matched_name, matched_publisher, predatory_url, confidence
-      FROM predatory_journals
-      WHERE sourceid = ?
-    `).get(sourceid) as {
+    const predRow = await workerQueryOne<{
       predatory_source: string;
       matched_name: string;
       matched_publisher: string | null;
       predatory_url: string | null;
       confidence: string;
-    } | undefined;
+    }>(
+      `SELECT predatory_source, matched_name, matched_publisher, predatory_url, confidence
+       FROM predatory_journals
+       WHERE sourceid = ?`,
+      sourceid
+    );
 
     if (predRow) {
       predatoryInfo = {

@@ -1,5 +1,6 @@
 import { cache } from "react";
-import { getDb, getPapersExtraDb } from "@/lib/db";
+import { getPapersExtraDb } from "@/lib/db";
+import { workerQuery, workerQueryOne } from "@/lib/worker-pool";
 import type {
   PaperAuthor,
   PaperCitation,
@@ -15,39 +16,46 @@ import type {
 /**
  * Read paths for paper_summary and its satellite tables.
  * See lib/queries/mesh.ts for the contract.
+ *
+ * Every journals.db read goes through the worker pool. A paper render is ~11
+ * statements, and under a crawl at 5-10 renders/s with a cold page cache the
+ * synchronous getDb() handle kept the main thread in disk wait for minutes at
+ * a time (measured 2026-11-03: main thread in state D, 54 GB of 4 KB random
+ * reads, all four workers idle, accept backlog full, and the load shedder
+ * never firing because its timer could not run either).
  */
 
 /** Indexed single-row lookup — safe for generateMetadata, which blocks the first flush. */
 export const getPaperSummary = cache(
   async (paperid: string): Promise<PaperSummary | null> =>
-    (getDb()
-      .prepare("SELECT * FROM paper_summary WHERE paperid = ?")
-      .get(paperid) as PaperSummary | undefined) ?? null
+    (await workerQueryOne<PaperSummary>(
+      "SELECT * FROM paper_summary WHERE paperid = ?",
+      paperid
+    )) ?? null
 );
 
 /** Authors, ordered first → middle → last. Indexed on paperid; cheap enough for metadata. */
 export const getPaperAuthors = cache(
   async (paperid: string): Promise<PaperAuthor[]> =>
-    getDb()
-      .prepare(
-        `SELECT paperid, authorid, display_name, author_position, institutionid, institution_name
-           FROM paper_authors WHERE paperid = ?
-          ORDER BY CASE author_position
-                     WHEN 'first' THEN 1 WHEN 'middle' THEN 2 WHEN 'last' THEN 3 ELSE 4 END`
-      )
-      .all(paperid) as PaperAuthor[]
+    workerQuery<PaperAuthor>(
+      `SELECT paperid, authorid, display_name, author_position, institutionid, institution_name
+         FROM paper_authors WHERE paperid = ?
+        ORDER BY CASE author_position
+                   WHEN 'first' THEN 1 WHEN 'middle' THEN 2 WHEN 'last' THEN 3 ELSE 4 END`,
+      paperid
+    )
 );
 
 export const getPaperDetails = cache(
   async (paperid: string): Promise<PaperDetails | null> => {
-  const db = getDb();
   try {
   // Get paper summary
   let summary: PaperSummary | undefined;
   try {
-    summary = db
-      .prepare(`SELECT * FROM paper_summary WHERE paperid = ?`)
-      .get(paperid) as PaperSummary | undefined;
+    summary = await workerQueryOne<PaperSummary>(
+      `SELECT * FROM paper_summary WHERE paperid = ?`,
+      paperid
+    );
   } catch {
     console.log("paper_summary table not found");
   }
@@ -57,21 +65,20 @@ export const getPaperDetails = cache(
   // Get authors
   let authors: PaperAuthor[] = [];
   try {
-    authors = db
-      .prepare(
-        `SELECT paperid, authorid, display_name, author_position,
-                institutionid, institution_name
-         FROM paper_authors
-         WHERE paperid = ?
-         ORDER BY
-           CASE author_position
-             WHEN 'first' THEN 1
-             WHEN 'middle' THEN 2
-             WHEN 'last' THEN 3
-             ELSE 4
-           END`
-      )
-      .all(paperid) as PaperAuthor[];
+    authors = await workerQuery<PaperAuthor>(
+      `SELECT paperid, authorid, display_name, author_position,
+              institutionid, institution_name
+       FROM paper_authors
+       WHERE paperid = ?
+       ORDER BY
+         CASE author_position
+           WHEN 'first' THEN 1
+           WHEN 'middle' THEN 2
+           WHEN 'last' THEN 3
+           ELSE 4
+         END`,
+      paperid
+    );
   } catch {
     console.log("paper_authors table not found, skipping");
   }
@@ -79,14 +86,13 @@ export const getPaperDetails = cache(
   // Get fields
   let fields: PaperField[] = [];
   try {
-    fields = db
-      .prepare(
-        `SELECT paperid, fieldid, field_name, level, score_openalex
-         FROM paper_fields
-         WHERE paperid = ?
-         ORDER BY score_openalex DESC NULLS LAST`
-      )
-      .all(paperid) as PaperField[];
+    fields = await workerQuery<PaperField>(
+      `SELECT paperid, fieldid, field_name, level, score_openalex
+       FROM paper_fields
+       WHERE paperid = ?
+       ORDER BY score_openalex DESC NULLS LAST`,
+      paperid
+    );
   } catch {
     console.log("paper_fields table not found, skipping");
   }
@@ -94,14 +100,13 @@ export const getPaperDetails = cache(
   // Get references (papers this paper cites) - all, sorted by citations
   let references: PaperReference[] = [];
   try {
-    references = db
-      .prepare(
-        `SELECT ref_paperid, ref_title, ref_year, ref_cited_by_count
-         FROM paper_references
-         WHERE paperid = ?
-         ORDER BY ref_cited_by_count DESC NULLS LAST`
-      )
-      .all(paperid) as PaperReference[];
+    references = await workerQuery<PaperReference>(
+      `SELECT ref_paperid, ref_title, ref_year, ref_cited_by_count
+       FROM paper_references
+       WHERE paperid = ?
+       ORDER BY ref_cited_by_count DESC NULLS LAST`,
+      paperid
+    );
   } catch {
     console.log("paper_references table not found, skipping");
   }
@@ -110,20 +115,20 @@ export const getPaperDetails = cache(
   let citations: PaperCitation[] = [];
   let citationsTotal = 0;
   try {
-    const countResult = db
-      .prepare(`SELECT COUNT(*) as count FROM paper_citations WHERE paperid = ?`)
-      .get(paperid) as { count: number } | undefined;
+    const countResult = await workerQueryOne<{ count: number }>(
+      `SELECT COUNT(*) as count FROM paper_citations WHERE paperid = ?`,
+      paperid
+    );
     citationsTotal = countResult?.count || 0;
 
-    citations = db
-      .prepare(
-        `SELECT citing_paperid, citing_title, citing_year, citing_cited_by_count
-         FROM paper_citations
-         WHERE paperid = ?
-         ORDER BY citing_cited_by_count DESC NULLS LAST
-         LIMIT 100`
-      )
-      .all(paperid) as PaperCitation[];
+    citations = await workerQuery<PaperCitation>(
+      `SELECT citing_paperid, citing_title, citing_year, citing_cited_by_count
+       FROM paper_citations
+       WHERE paperid = ?
+       ORDER BY citing_cited_by_count DESC NULLS LAST
+       LIMIT 100`,
+      paperid
+    );
   } catch {
     console.log("paper_citations table not found or not indexed, skipping");
   }
@@ -132,14 +137,13 @@ export const getPaperDetails = cache(
   // Try precomputed table first, fall back to on-demand calculation
   let citationHistory: PaperCitationHistory[] = [];
   try {
-    citationHistory = db
-      .prepare(
-        `SELECT year, citation_count
-         FROM paper_citation_history
-         WHERE paperid = ?
-         ORDER BY year`
-      )
-      .all(paperid) as PaperCitationHistory[];
+    citationHistory = await workerQuery<PaperCitationHistory>(
+      `SELECT year, citation_count
+       FROM paper_citation_history
+       WHERE paperid = ?
+       ORDER BY year`,
+      paperid
+    );
   } catch {
     // Table doesn't exist, will fall back to on-demand
   }
@@ -147,15 +151,14 @@ export const getPaperDetails = cache(
   // Fall back to on-demand calculation if no precomputed data
   if (citationHistory.length === 0) {
     try {
-      citationHistory = db
-        .prepare(
-          `SELECT citing_year as year, COUNT(*) as citation_count
-           FROM paper_citations
-           WHERE paperid = ? AND citing_year IS NOT NULL
-           GROUP BY citing_year
-           ORDER BY citing_year`
-        )
-        .all(paperid) as PaperCitationHistory[];
+      citationHistory = await workerQuery<PaperCitationHistory>(
+        `SELECT citing_year as year, COUNT(*) as citation_count
+         FROM paper_citations
+         WHERE paperid = ? AND citing_year IS NOT NULL
+         GROUP BY citing_year
+         ORDER BY citing_year`,
+        paperid
+      );
     } catch {
       console.log("Could not fetch citation history");
     }
@@ -164,13 +167,12 @@ export const getPaperDetails = cache(
   // Get clinical trials associated with this paper
   let trials: PaperTrial[] = [];
   try {
-    trials = db
-      .prepare(
-        `SELECT paperid, nct_id, reference_type
-         FROM paper_trials
-         WHERE paperid = ?`
-      )
-      .all(paperid) as PaperTrial[];
+    trials = await workerQuery<PaperTrial>(
+      `SELECT paperid, nct_id, reference_type
+       FROM paper_trials
+       WHERE paperid = ?`,
+      paperid
+    );
   } catch {
     console.log("paper_trials table not found, skipping");
   }
@@ -178,14 +180,13 @@ export const getPaperDetails = cache(
   // Get patents that cite this paper
   let patents: PaperPatent[] = [];
   try {
-    patents = db
-      .prepare(
-        `SELECT paperid, patent, is_uspto
-         FROM paper_patents
-         WHERE paperid = ?
-         ORDER BY is_uspto DESC, patent`
-      )
-      .all(paperid) as PaperPatent[];
+    patents = await workerQuery<PaperPatent>(
+      `SELECT paperid, patent, is_uspto
+       FROM paper_patents
+       WHERE paperid = ?
+       ORDER BY is_uspto DESC, patent`,
+      paperid
+    );
   } catch {
     // Table doesn't exist yet - will be created by add_paper_patents.py
   }
@@ -217,6 +218,9 @@ export const getPaperDetails = cache(
  * 404ing. The check has to happen before notFound(), or the conversion would
  * turn every lite paper into a hard 404 — the one place a naive port regresses
  * behaviour.
+ *
+ * Still a synchronous main-thread read: papers_extra.db has no worker pool. It
+ * is one indexed lookup and only runs for ids missing from paper_summary.
  */
 export const paperExistsInLiteDb = cache(async (paperid: string): Promise<boolean> => {
   const extra = getPapersExtraDb();
