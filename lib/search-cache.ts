@@ -141,6 +141,10 @@ const funderSearchCache = new LRUCache<unknown>(5000, 15 * 60 * 1000);
 // Cache 5,000 queries * ~20KB avg = ~100MB
 const trialSearchCache = new LRUCache<unknown>(5000, 15 * 60 * 1000);
 
+// Grant lookups: resolve-by-number plus pages of one grant's papers.
+// Cache 5,000 entries * ~20KB avg = ~100MB
+const grantsCache = new LRUCache<unknown>(5000, 15 * 60 * 1000);
+
 // Trends aggregates: a bounded set of precomputed-rollup views plus country
 // drill-downs. Its own cache so trends traffic can never evict paper-search
 // results, and a long TTL because the rollups only change on reimport.
@@ -155,7 +159,8 @@ export const searchCaches = {
   journals: journalSearchCache,
   affiliations: affiliationSearchCache,
   funders: funderSearchCache,
-  trials: trialSearchCache
+  trials: trialSearchCache,
+  grants: grantsCache
 };
 
 // Helper to generate cache key from search params

@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/edge-challenge";
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -67,7 +68,7 @@ export default function FundersMapPage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const res = await fetch("/api/funders/by-country");
+        const res = await apiFetch("/api/funders/by-country");
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (data.error) throw new Error(data.error);

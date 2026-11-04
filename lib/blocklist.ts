@@ -1,5 +1,6 @@
 import { readFileSync, statSync } from "fs";
 import { join } from "path";
+import { isHeaderGateMode, type HeaderGateMode } from "./bot-signals";
 
 // Blocklist for abusive clients, checked in middleware before any DB work.
 //
@@ -55,6 +56,13 @@ export interface BlocklistFile {
   cidrs?: string[];
   /** Case-insensitive substrings matched against the User-Agent header. */
   userAgents?: string[];
+  /**
+   * Browser-header consistency gate (lib/bot-signals.ts): "off", "log"
+   * (default — log mismatches, allow the request) or "enforce" (403). Lives
+   * here rather than in an env var so it can be flipped mid-incident without
+   * the restart and cache-warm window.
+   */
+  headerGate?: HeaderGateMode;
 }
 
 /**
@@ -82,9 +90,18 @@ interface CompiledBlocklist {
   ips: Set<string>;
   cidrs: ParsedCidr[];
   userAgents: string[];
+  headerGate: HeaderGateMode;
 }
 
-const EMPTY: CompiledBlocklist = { ips: new Set(), cidrs: [], userAgents: [] };
+/** Applies when the file is missing or omits the key: observe, never block. */
+const DEFAULT_HEADER_GATE: HeaderGateMode = "log";
+
+const EMPTY: CompiledBlocklist = {
+  ips: new Set(),
+  cidrs: [],
+  userAgents: [],
+  headerGate: DEFAULT_HEADER_GATE,
+};
 
 // --- address parsing -------------------------------------------------------
 
@@ -257,11 +274,21 @@ function safeUserAgentPatterns(entries: string[] | undefined): string[] {
   return out;
 }
 
+function compileHeaderGate(raw: unknown): HeaderGateMode {
+  if (raw === undefined) return DEFAULT_HEADER_GATE;
+  if (isHeaderGateMode(raw)) return raw;
+  console.error(
+    `[blocklist] ignoring headerGate ${JSON.stringify(raw)}: expected "off", "log" or "enforce"; using "${DEFAULT_HEADER_GATE}"`
+  );
+  return DEFAULT_HEADER_GATE;
+}
+
 function compile(raw: BlocklistFile): CompiledBlocklist {
   return {
     ips: new Set((raw.ips ?? []).map((s) => s.trim()).filter(Boolean)),
     cidrs: compileCidrs(raw.cidrs, "blocklist"),
     userAgents: safeUserAgentPatterns(raw.userAgents),
+    headerGate: compileHeaderGate(raw.headerGate),
   };
 }
 
@@ -270,6 +297,7 @@ function compileAllowlist(raw: AllowlistFile): CompiledBlocklist {
     ips: new Set((raw.ips ?? []).map((s) => s.trim()).filter(Boolean)),
     cidrs: compileCidrs(raw.cidrs, "allowlist"),
     userAgents: [],
+    headerGate: DEFAULT_HEADER_GATE,
   };
 }
 
@@ -302,7 +330,8 @@ function makeLoader<T>(
       mtime = mtimeMs;
       console.log(
         `[${label}] loaded ${current.ips.size} IPs, ${current.cidrs.length} CIDRs, ` +
-          `${current.userAgents.length} UA patterns`
+          `${current.userAgents.length} UA patterns` +
+          (label === "blocklist" ? `, headerGate=${current.headerGate}` : "")
       );
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
@@ -363,6 +392,14 @@ export function getBlockReason(ip: string, userAgent: string): string | null {
   }
 
   return null;
+}
+
+/**
+ * Current mode of the browser-header consistency gate, from data/blocklist.json.
+ * Hot-reloaded like the rest of the file; defaults to "log".
+ */
+export function getHeaderGateMode(): HeaderGateMode {
+  return load().headerGate;
 }
 
 /**

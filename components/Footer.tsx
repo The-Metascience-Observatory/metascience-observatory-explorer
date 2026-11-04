@@ -20,6 +20,7 @@ const browse: Array<[string, string]> = [
   ["Journals", "/journals"],
   ["Institutions", "/affiliations"],
   ["Funders", "/funders"],
+  ["Grants", "/grants"],
   ["Research fields", "/fields"],
   ["Clinical trials", "/trials"],
   ["Retractions", "/retractions"],

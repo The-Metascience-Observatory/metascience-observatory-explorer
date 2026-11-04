@@ -12,6 +12,7 @@ export const ENTITY_COUNTS = {
   funders: 32_437,
   trials: 562_856,            // ctg_studies, the table /api/trials/search queries
   openairePapers: 33_509_044, // first-class papers from the OpenAIRE Graph v11.1.1
+  grants: 2_047_751,          // grant_summary in grants.db (built 2026-11-03)
 } as const;
 
 // Paper search queries both sources and appends OpenAIRE results, so the

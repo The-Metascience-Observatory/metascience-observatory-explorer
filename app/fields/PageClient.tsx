@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/edge-challenge";
 import { useEffect, useState } from "react";
 import { FieldBubbleChart } from "@/components/FieldBubbleChart";
 import { Loader2 } from "lucide-react";
@@ -32,7 +33,7 @@ export default function FieldExplorerPage() {
   useEffect(() => {
     async function fetchHierarchy() {
       try {
-        const res = await fetch("/api/fields/hierarchy");
+        const res = await apiFetch("/api/fields/hierarchy");
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}`);
         }

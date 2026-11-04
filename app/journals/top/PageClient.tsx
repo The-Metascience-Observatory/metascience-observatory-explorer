@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/edge-challenge";
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,7 +50,7 @@ export default function TopJournalsClient({
         params.set('field', selectedField);
       }
 
-      const res = await fetch(`/api/journals/top?${params}`);
+      const res = await apiFetch(`/api/journals/top?${params}`);
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || `HTTP ${res.status}`);

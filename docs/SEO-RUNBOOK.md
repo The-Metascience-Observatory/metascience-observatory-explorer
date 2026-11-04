@@ -108,6 +108,55 @@ The origin is a home server behind a tunnel. Without edge caching, every one of
 5. **Crawler Hints** — on (Caching → Configuration). This is IndexNow; it
    replaces the sitemap ping endpoints Google and Bing both retired.
 6. **Brotli** on, **HTTP/3** on.
+7. **WAF custom rule: Managed Challenge for every unverified client**
+   (Security → WAF → Custom rules). Added after the 2026-10-28 incident: a
+   residential-proxy scraper at 65–100 req/s that never reused an IP, so
+   nothing in `middleware.ts` keyed on the address could see it. The edge is
+   the only place with a fingerprint that survives IP rotation.
+   - Expression (the host match keeps it off the apex, which is the Vercel site):
+     ```
+     http.host eq "explore.metascienceobservatory.org"
+     and not cf.client.bot
+     and not starts_with(http.request.uri.path, "/_next/")
+     and not starts_with(http.request.uri.path, "/sitemaps/")
+     and not http.request.uri.path in {"/robots.txt" "/sitemap.xml" "/favicon.ico"}
+     ```
+   - Action: **Managed Challenge**.
+   - `not cf.client.bot` exempts every Cloudflare verified bot — Googlebot,
+     Bingbot, Applebot, DuckDuckBot, OAI-SearchBot, ClaudeBot, PerplexityBot,
+     ExaSearchBot, and the social preview fetchers — so this is scoped where Bot
+     Fight Mode (item 4) is not. `/robots.txt`, `/sitemap.xml` and
+     `/sitemaps/*` stay open so an unverified crawler can still read the
+     crawl policy; `/_next/` is static assets.
+   - **The rule must cover the hub pages (`/`, `/papers`, `/persons`, …), not
+     just the entity and `/api/` paths.** The first version listed only
+     `starts_with(path, "/persons/")`-style prefixes plus `/api/`. The hubs
+     have no trailing slash, so arriving at the homepage was not challenged
+     while the page's own `fetch('/api/persons/search')` was. A challenge can
+     only be rendered on a navigation; on a fetch Cloudflare answers
+     **403 with `cf-mitigated: challenge`** and no usable body. Symptom:
+     autocomplete silently empty, red `HTTP 403` on the results page, until the
+     visitor happened to open a detail page and collect the `cf_clearance`
+     cookie. Challenging every navigation means the cookie exists before the
+     first fetch.
+   - **Security → Settings → Challenge Passage: set to 1 day** (default is
+     30 minutes). This is how long the clearance cookie lasts; a tab left open
+     past it hits the fetch-403 case again.
+   - For that expired-cookie case the client recovers itself:
+     `lib/edge-challenge.ts` `apiFetch()` detects `cf-mitigated: challenge`,
+     reloads the page once (the reload is a navigation, so it is challenged and
+     re-issues the cookie), and refuses to reload again within 60 s so a failing
+     challenge cannot loop. Every search box and hub `PageClient` uses it;
+     detail pages are reached by a challenged navigation and use plain `fetch`.
+   - If the scraper survives the challenge (full headless browsers), Bot Fight
+     Mode is the next step despite its scoping problem.
+   - **Leave `headerGate` in `data/blocklist.json` on `"log"`.** Measured
+     2026-10-29: the gate trips on Applebot, OAI-SearchBot and Reflectionbot,
+     which send browser-shaped UAs without `sec-fetch-*`. `"enforce"` would
+     403 the crawlers this rule deliberately lets through. Making the gate safe
+     needs the origin to know `cf.client.bot`, which Cloudflare does not
+     forward; a Transform Rule adding a request header when it is true would be
+     the way, and the gate would then exempt that header.
 
 ## 4. Search Console and Bing — one-off
 
@@ -137,6 +186,19 @@ while the box is being crawled hard. Use instead:
 - **`docker logs`** — a throttled crawler is logged as `[RATE-LIMIT-CRAWLER]`,
   deliberately distinct from `[RATE-LIMIT]`. Grep for it; it should never
   appear. Crawler request logging is sampled 1-in-50 to keep the log small.
+- **`[SHED]` / `[SHED-CRAWLER]`** — the origin is refusing requests with a 503
+  because the event loop's worst lag sample in a 5 s window exceeded `LOAD_SHED_LAG_MS` (default
+  250 ms, `0` disables). Sampled 1-in-50 for ordinary clients, every time for
+  a verified crawler. A run of `SHED-CRAWLER` means the box was overloaded
+  while Google was crawling; look for what else was hitting it.
+- **`[HEADER-GATE]`** — a request whose User-Agent claims a modern browser
+  but lacks the Fetch Metadata / client-hint headers a real one always sends
+  (`lib/bot-signals.ts`). In `"log"` mode (the default, 1-in-20 sampled) it is
+  observation only; set `"headerGate": "enforce"` in `data/blocklist.json`
+  to 403 them — hot-reloaded, no restart. Verified crawlers are exempt.
+- The tmux scrollback holds only ~500 lines — about six seconds during a
+  flood. When not under Docker, start the server with
+  `npm start 2>&1 | tee logs/server-$(date +%Y%m%d_%H%M%S).log`.
 
 ### What to expect
 

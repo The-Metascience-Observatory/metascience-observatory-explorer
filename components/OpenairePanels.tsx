@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { funderFromOpenaireShortname, grantPath, normalizeGrantId } from "@/lib/grant-id";
 import { Database, ExternalLink, Landmark, Package, TrendingUp } from "lucide-react";
 import { formatNumber } from "@/lib/utils";
 import type {
@@ -85,6 +87,9 @@ export function OpenaireFundingSection({ projects }: { projects: OpenaireProject
         {projects.map((p) => {
           const url = projectUrl(p);
           const heading = [p.funderShortname, p.code].filter(Boolean).join(" ");
+          // Internal grant page: every paper linked to this award across all sources.
+          const norm = normalizeGrantId(p.code, funderFromOpenaireShortname(p.funderShortname));
+          const grantHref = norm && norm.funder ? grantPath(norm.funder, norm.key) : null;
           const title = p.acronym && p.title ? `${p.acronym}: ${p.title}` : p.title || p.acronym;
           return (
             <div
@@ -92,7 +97,13 @@ export function OpenaireFundingSection({ projects }: { projects: OpenaireProject
               className="rounded-md border p-2 text-sm bg-gray-50 dark:bg-gray-900"
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="font-medium">{heading || "Unknown grant"}</span>
+                {grantHref ? (
+                  <Link href={grantHref} className="font-medium text-blue-700 hover:underline" title="All papers linked to this grant">
+                    {heading}
+                  </Link>
+                ) : (
+                  <span className="font-medium">{heading || "Unknown grant"}</span>
+                )}
                 {url && (
                   <a
                     href={url}

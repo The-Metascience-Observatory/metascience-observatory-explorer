@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/edge-challenge";
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -56,7 +57,7 @@ function JournalsSearchContent() {
     setLoading(true);
 
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/journals/search?q=${encodeURIComponent(searchQuery)}`
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

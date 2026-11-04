@@ -360,6 +360,59 @@ export interface PaperSearchItem {
   openaire?: boolean; // true when the paper comes from the OpenAIRE Graph
 }
 
+// Grants (data/grants.db, built by scripts/build_grants_db.py)
+
+export type GrantSource = "nih_exporter" | "nsf" | "pubmed" | "openaire";
+
+/** One row of grant_summary: a (funder, key) pair with its paper counts and OpenAIRE metadata. */
+export interface GrantSummary {
+  funder: string;
+  key: string;
+  serial: string | null;
+  activity: string | null;
+  display: string;
+  raw_ids: string[];
+  paper_count: number;
+  reported_count: number;
+  acknowledged_count: number;
+  sources: GrantSource[];
+  first_year: number | null;
+  last_year: number | null;
+  title: string | null;
+  acronym: string | null;
+  funding_stream: string | null;
+  funder_name: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  funded_amount: number | null;
+  currency: string | null;
+  project_count: number | null;
+}
+
+export interface GrantMatch extends GrantSummary {
+  /** True when (funder, key) equals the normalized query, not just its serial or bare number. */
+  exact: boolean;
+}
+
+export interface GrantLookupResponse {
+  query: string;
+  available: boolean;
+  normalized: { funder: string | null; key: string; serial: string | null } | null;
+  matches: GrantMatch[];
+}
+
+export interface GrantPaperItem extends PaperSearchItem {
+  sources: GrantSource[];
+}
+
+export interface GrantPapersResponse {
+  results: GrantPaperItem[];
+  total: number;
+  offset: number;
+  limit: number;
+  hasMore: boolean;
+}
+
 export interface JournalPublication {
   paperid: string;
   sourceid: string;

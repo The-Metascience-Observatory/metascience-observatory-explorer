@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/edge-challenge";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -60,7 +61,7 @@ export default function RetractionsAnalyticsPage() {
   useEffect(() => {
     async function fetchStats() {
       try {
-        const res = await fetch("/api/retractions/stats");
+        const res = await apiFetch("/api/retractions/stats");
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
@@ -83,7 +84,7 @@ export default function RetractionsAnalyticsPage() {
     async function fetchRateData() {
       setRateLoading(true);
       try {
-        const res = await fetch(`/api/retractions/stats?startYear=${startYear}&endYear=${endYear}`);
+        const res = await apiFetch(`/api/retractions/stats?startYear=${startYear}&endYear=${endYear}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (data.error) throw new Error(data.error);

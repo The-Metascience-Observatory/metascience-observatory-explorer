@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/edge-challenge";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
@@ -59,7 +60,7 @@ export function PaperSearch({ compact = false }: PaperSearchProps) {
     async function search() {
       setLoading(true);
       try {
-        const res = await fetch(`/api/papers/search?q=${encodeURIComponent(debouncedQuery)}`);
+        const res = await apiFetch(`/api/papers/search?q=${encodeURIComponent(debouncedQuery)}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data: SearchResponse = await res.json();
         if (data.error) {

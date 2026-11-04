@@ -9,6 +9,7 @@ import { PublicationsChart } from "@/components/PublicationsChart";
 import { CitationsChart } from "@/components/CitationsChart";
 import { CareerTimeline } from "@/components/CareerTimeline";
 import type { PersonDetails } from "@/lib/types";
+import { describeNihActivity, grantPath, normalizeGrantId } from "@/lib/grant-id";
 import { formatNumber } from "@/lib/utils";
 import {
   ArrowLeft,
@@ -154,187 +155,11 @@ interface FunderGroup {
   totalPapers: number;
 }
 
-// NIH Grant Activity Code descriptions
-const NIH_ACTIVITY_CODES: Record<string, string> = {
-  // R — Research Project Grants
-  "R01": "Research project grant",
-  "R03": "Small research grant",
-  "R15": "Academic Research Enhancement Award",
-  "R21": "Exploratory/developmental grant",
-  "R22": "Phased innovation grant",
-  "R24": "Resource-related research project",
-  "R25": "Education project grant",
-  "R29": "FIRST Award (early-career)",
-  "R33": "Exploratory phase II grant",
-  "R34": "Clinical trial planning grant",
-  "R35": "Outstanding Investigator Award",
-  "R36": "Dissertation research grant",
-  "R37": "MERIT Award",
-  "R38": "StARR residency research",
-  "R41": "STTR Phase I",
-  "R42": "STTR Phase II",
-  "R43": "SBIR Phase I",
-  "R44": "SBIR Phase II",
-  "R56": "High priority short-term award",
-  "R61": "Exploratory clinical trial",
-  "R00": "Pathway to Independence (independent phase)",
-  // K — Career Development Awards
-  "K01": "Mentored research scientist award",
-  "K02": "Independent scientist award",
-  "K05": "Senior scientist award",
-  "K07": "Academic career award",
-  "K08": "Mentored clinical scientist award",
-  "K12": "Institutional career development",
-  "K18": "Career enhancement award",
-  "K22": "Career transition award",
-  "K23": "Mentored patient-oriented research",
-  "K24": "Midcareer investigator award",
-  "K25": "Mentored quantitative research",
-  "K26": "Midcareer quantitative research",
-  "K99": "Pathway to Independence (mentored phase)",
-  // P — Program Project / Center Grants
-  "P01": "Program project grant",
-  "P20": "Exploratory center planning grant",
-  "P30": "Center core grant",
-  "P40": "Animal/biological resource center",
-  "P41": "Biomedical technology resource",
-  "P50": "Specialized center grant",
-  "P51": "Primate research center",
-  "P60": "Comprehensive center grant",
-  "P17": "Research program grant",
-  "P42": "Superfund research center",
-  // U — Cooperative Agreements
-  "U01": "Cooperative agreement",
-  "U10": "Cooperative clinical research",
-  "U13": "Conference cooperative agreement",
-  "U19": "Multi-project cooperative agreement",
-  "U24": "Resource cooperative agreement",
-  "U41": "Informatics resource cooperative",
-  "U42": "SBIR/STTR cooperative",
-  "U54": "Specialized center cooperative",
-  "U56": "Exploratory cooperative agreement",
-  "UM1": "Multi-component clinical trial",
-  "UG1": "Clinical trial cooperative",
-  "UG3": "Planning phase cooperative",
-  "UH2": "Exploratory cooperative",
-  "UH3": "Implementation cooperative",
-  // T — Training Grants
-  "T15": "Short-term training grant",
-  "T32": "Institutional training grant",
-  "T34": "Undergraduate training grant",
-  "T35": "Short-term institutional training",
-  "T90": "Interdisciplinary training grant",
-  "TL1": "CTSA predoc/postdoc training",
-  // F — Fellowships
-  "F30": "Predoctoral dual-degree fellowship",
-  "F31": "Predoctoral fellowship",
-  "F32": "Postdoctoral fellowship",
-  "F33": "Senior fellowship",
-  // N — R&D Contracts
-  "N01": "R&D contract",
-  "N02": "Intramural research contract",
-  "N43": "SBIR contract Phase I",
-  "N44": "SBIR contract Phase II",
-  // M — Clinical Research Infrastructure
-  "M01": "General Clinical Research Center",
-  "M02": "Clinical research construction",
-  // S — Supplements & Other
-  "S10": "Shared instrumentation grant",
-  "S15": "Small instrumentation grant",
-  "S21": "Research education grant",
-  "SC1": "Research project (minority-serving)",
-  "SC2": "Pilot research (minority-serving)",
-  "SC3": "Small research (minority-serving)",
-  // Z — Intramural Research
-  "ZIA": "NIH intramural research",
-  "ZIC": "NIH intramural center support",
-  "ZIR": "NIH intramural resource",
-  // DP — Director's Programs
-  "DP1": "Director's Pioneer Award",
-  "DP2": "Director's New Innovator Award",
-  "DP3": "Director's Type 1 Diabetes Award",
-  "DP4": "Director's Pathfinder Award",
-  "DP5": "Director's Early Independence Award",
+// Which normalizer hint a funder group implies (see lib/grant-id.ts).
+const GRANT_HINTS: Record<string, string> = {
+  NIH: "NIH", NSF: "NSF", EU: "EC", UKRI: "UKRI", DFG: "DFG", ANR: "ANR",
+  JSPS: "JSPS", NSFC: "NSFC", CIHR: "CIHR",
 };
-
-// Valid NIH Activity Codes (for validation)
-const VALID_NIH_ACTIVITY_CODES = new Set(Object.keys(NIH_ACTIVITY_CODES));
-
-// Valid NIH Institute/Center codes (2-letter)
-const VALID_NIH_IC_CODES = new Set([
-  "AA", "AG", "AI", "AR", "AT", "CA", "DA", "DC", "DE", "DK", "EB", "ES", "EY",
-  "GM", "HD", "HG", "HL", "LM", "MD", "MH", "NR", "NS", "OD", "RR", "TR", "TW"
-]);
-
-// Parse NIH grant ID and extract components
-interface NIHGrantInfo {
-  isNIH: boolean;
-  activityCode: string | null;
-  icCode: string | null;
-  serialNumber: string | null;
-  description: string | null;
-}
-
-function parseNIHGrantId(awardId: string): NIHGrantInfo {
-  const cleanId = awardId.toUpperCase().replace(/[\s\-]/g, '');
-
-  // Handle intramural grants (ZIA, ZIC, ZIR)
-  const intramuralMatch = cleanId.match(/^(ZI[ACR])([A-Z]{2})(\d{6})$/);
-  if (intramuralMatch) {
-    const [, activityCode, icCode, serial] = intramuralMatch;
-    if (VALID_NIH_ACTIVITY_CODES.has(activityCode)) {
-      return {
-        isNIH: true,
-        activityCode,
-        icCode,
-        serialNumber: serial,
-        description: NIH_ACTIVITY_CODES[activityCode] || null
-      };
-    }
-  }
-
-  // Handle extramural grants - may have leading digit (application type)
-  // Format: [0-9]?[Activity Code][IC Code][Serial Number][Suffix]?
-  // Examples: R01MH050129, 5R01DK102815, 1K24CA123456-01A1
-  const extramuralMatch = cleanId.match(/^(\d)?([A-Z]{1,3}\d{1,2})([A-Z]{2})(\d{5,6})/);
-  if (extramuralMatch) {
-    const [, , activityCode, icCode, serial] = extramuralMatch;
-
-    // Validate all three components
-    if (VALID_NIH_ACTIVITY_CODES.has(activityCode) && VALID_NIH_IC_CODES.has(icCode)) {
-      return {
-        isNIH: true,
-        activityCode,
-        icCode,
-        serialNumber: serial,
-        description: NIH_ACTIVITY_CODES[activityCode] || null
-      };
-    }
-  }
-
-  // Check for DP (Director's) awards: DP1, DP2, etc.
-  const dpMatch = cleanId.match(/^(\d)?(DP\d)([A-Z]{2})(\d{5,6})/);
-  if (dpMatch) {
-    const [, , activityCode, icCode, serial] = dpMatch;
-    if (VALID_NIH_ACTIVITY_CODES.has(activityCode) && VALID_NIH_IC_CODES.has(icCode)) {
-      return {
-        isNIH: true,
-        activityCode,
-        icCode,
-        serialNumber: serial,
-        description: NIH_ACTIVITY_CODES[activityCode] || null
-      };
-    }
-  }
-
-  return {
-    isNIH: false,
-    activityCode: null,
-    icCode: null,
-    serialNumber: null,
-    description: null
-  };
-}
 
 // Check if grant ID matches non-US funder patterns
 function identifyNonUSFunder(awardId: string): string | null {
@@ -374,9 +199,8 @@ function identifyNonUSFunder(awardId: string): string | null {
 // Helper to identify funder category for grouping
 function categorizeFunder(funderName: string | null, awardId?: string | null): string {
   if (awardId) {
-    // First check if it's a valid NIH grant using strict validation
-    const nihInfo = parseNIHGrantId(awardId);
-    if (nihInfo.isNIH) {
+    // NIH project numbers have an unmistakable shape (activity + IC + serial)
+    if (normalizeGrantId(awardId)?.funder === 'NIH') {
       return 'NIH';
     }
 
@@ -1288,11 +1112,14 @@ export default function PersonDetailClient({
                       {group.grants.map((grant, idx) => {
                         const details = grantDetails.get(grant.award_id);
                         const isLoading = loadingGrants.has(grant.award_id);
-                        // Parse NIH grant info for description and URL
-                        const nihInfo = parseNIHGrantId(grant.award_id);
+                        // Normalize for the activity-code note, the funder link and the internal grant page
+                        const norm = normalizeGrantId(grant.award_id, GRANT_HINTS[group.funderKey] ?? null);
+                        const isNih = norm?.funder === 'NIH';
+                        const activityNote = isNih ? describeNihActivity(norm?.activity) : null;
+                        const internalHref = norm?.funder ? grantPath(norm.funder, norm.key) : null;
                         // Use API-fetched URL if available, otherwise use immediate URL
                         // For NIH grants, always link to NIH Reporter
-                        const immediateUrl = nihInfo.isNIH
+                        const immediateUrl = isNih
                           ? `https://reporter.nih.gov/quickSearch/${encodeURIComponent(grant.award_id.replace(/\s+/g, ''))}`
                           : getGrantUrl(grant.award_id, group.funderKey);
                         const displayUrl = details?.url || immediateUrl;
@@ -1320,10 +1147,20 @@ export default function PersonDetailClient({
                                     <span className="font-medium">{grant.award_id}</span>
                                   )}
                                   {/* NIH activity code description */}
-                                  {nihInfo.isNIH && nihInfo.description && (
+                                  {activityNote && (
                                     <span className="text-xs text-gray-400">
-                                      {nihInfo.description}
+                                      {activityNote}
                                     </span>
+                                  )}
+                                  {/* Internal page: every paper linked to this grant, from all sources */}
+                                  {internalHref && (
+                                    <Link
+                                      href={internalHref}
+                                      className="text-xs text-blue-600 hover:underline"
+                                      title="All papers linked to this grant"
+                                    >
+                                      linked papers
+                                    </Link>
                                   )}
                                   {details && formatGrantYears(details.start_date, details.end_date) && (
                                     <span className="text-sm text-gray-500">

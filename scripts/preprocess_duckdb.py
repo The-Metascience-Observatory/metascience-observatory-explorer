@@ -1055,89 +1055,12 @@ def process_fields(con, args, paths, progress, progress_path):
     else:
         print("Creating field_summary table (skipping - already done)")
 
-    # Step 3: Compute top 50 most-cited papers per field
-    # DISABLED: This query is too memory-intensive (OOM with 26GB)
-    # TODO: Re-enable when we have a more memory-efficient approach
-    # if not progress.get("field_top_papers_done"):
-    #     drop_table_if_exists(con, "field_top_papers")
-    #     print("Computing top papers per field...")
-    #     print("  This is a slow operation...")
-    #
-    #     run_with_progress(con, f"""
-    #         CREATE TABLE field_top_papers AS
-    #         SELECT
-    #             fieldid,
-    #             paperid,
-    #             title,
-    #             year,
-    #             cited_by_count,
-    #             source_name
-    #         FROM (
-    #             SELECT
-    #                 pf.fieldid,
-    #                 pf.paperid,
-    #                 pd.title,
-    #                 p.year,
-    #                 p.cited_by_count,
-    #                 s.display_name as source_name,
-    #                 ROW_NUMBER() OVER (PARTITION BY pf.fieldid ORDER BY p.cited_by_count DESC NULLS LAST) as rn
-    #             FROM read_parquet('{paperfields_path}') pf
-    #             JOIN read_parquet('{papers_path}') p ON pf.paperid = p.paperid
-    #             LEFT JOIN read_parquet('{paperdetails_path}') pd ON pf.paperid = pd.paperid
-    #             LEFT JOIN read_parquet('{papersources_path}') ps ON pf.paperid = ps.paperid
-    #             LEFT JOIN read_parquet('{sources_path}') s ON ps.sourceid = s.sourceid
-    #             WHERE p.cited_by_count > 0
-    #         ) ranked
-    #         WHERE rn <= 50
-    #     """, "Computing top papers per field")
-    #
-    #     papers_count = con.execute("SELECT COUNT(*) FROM field_top_papers").fetchone()[0]
-    #     print(f"  Computed top papers for fields ({papers_count:,} rows)")
-    #     progress["field_top_papers_done"] = True
-    #     save_progress(progress_path, progress)
-    # else:
-    #     print("Computing top papers per field (skipping - already done)")
-    print("Computing top papers per field (DISABLED - too memory intensive)")
-
-    # Step 4: Compute top 50 authors per field by paper count
-    # DISABLED: This query is too memory-intensive (OOM with 26GB)
-    # TODO: Re-enable when we have a more memory-efficient approach
-    # if not progress.get("field_top_authors_done"):
-    #     drop_table_if_exists(con, "field_top_authors")
-    #     print("Computing top authors per field...")
-    #     print("  This is a slow operation...")
-    #
-    #     run_with_progress(con, f"""
-    #         CREATE TABLE field_top_authors AS
-    #         SELECT
-    #             fieldid,
-    #             authorid,
-    #             display_name,
-    #             h_index,
-    #             paper_count
-    #         FROM (
-    #             SELECT
-    #                 pf.fieldid,
-    #                 ap.authorid,
-    #                 a.display_name,
-    #                 a.h_index,
-    #                 COUNT(DISTINCT pf.paperid) as paper_count,
-    #                 ROW_NUMBER() OVER (PARTITION BY pf.fieldid ORDER BY COUNT(DISTINCT pf.paperid) DESC) as rn
-    #             FROM read_parquet('{paperfields_path}') pf
-    #             JOIN read_parquet('{authors_paperid_path}') ap ON pf.paperid = ap.paperid
-    #             LEFT JOIN read_parquet('{authors_path}') a ON ap.authorid = a.authorid
-    #             GROUP BY pf.fieldid, ap.authorid, a.display_name, a.h_index
-    #         ) ranked
-    #         WHERE rn <= 50
-    #     """, "Computing top authors per field")
-    #
-    #     authors_count = con.execute("SELECT COUNT(*) FROM field_top_authors").fetchone()[0]
-    #     print(f"  Computed top authors for fields ({authors_count:,} rows)")
-    #     progress["field_top_authors_done"] = True
-    #     save_progress(progress_path, progress)
-    # else:
-    #     print("Computing top authors per field (skipping - already done)")
-    print("Computing top authors per field (DISABLED - too memory intensive)")
+    # Steps 3-4 (field_top_papers, field_top_authors) used to live here but OOM'd at
+    # 26 GB: they joined titles/sources onto billions of rows before ranking with a
+    # window function. They now live in scripts/field_rollups.py, which ranks first
+    # with DuckDB's bounded max_by(x, score, n) and looks names up afterwards in
+    # SQLite. That script also supersedes process_field_top_cited_papers() below.
+    print("Top papers/authors per field: see scripts/field_rollups.py")
 
     # Note: Indexes are created in SQLite at the end, not in DuckDB
     # DuckDB indexes would be thrown away when we export to SQLite

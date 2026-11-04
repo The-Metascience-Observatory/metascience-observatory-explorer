@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/edge-challenge";
 import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -120,7 +121,7 @@ function RetractionsSearchContent() {
   useEffect(() => {
     async function loadInitial() {
       try {
-        const res = await fetch(buildUrl(null, 0));
+        const res = await apiFetch(buildUrl(null, 0));
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data: SearchResponse = await res.json();
         setResults(data.results);
@@ -155,7 +156,7 @@ function RetractionsSearchContent() {
 
     try {
       const currentOffset = isLoadMore ? offset : 0;
-      const res = await fetch(buildUrl(searchQuery, currentOffset));
+      const res = await apiFetch(buildUrl(searchQuery, currentOffset));
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: SearchResponse = await res.json();
 

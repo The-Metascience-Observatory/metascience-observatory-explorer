@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/edge-challenge";
 import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -66,7 +67,7 @@ function PapersSearchContent() {
 
     try {
       const currentOffset = isLoadMore ? offset : 0;
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/papers/search?q=${encodeURIComponent(searchQuery)}&limit=${BROWSE_PAGE_SIZE}&offset=${currentOffset}`
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

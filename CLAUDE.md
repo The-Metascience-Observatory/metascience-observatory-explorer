@@ -62,6 +62,8 @@ webpack build compiles in ~17s at 0.4 GB. `npm run build` therefore passes
 `next build` evaluates route modules and would otherwise open ~18 GB of page
 cache in the build process.
 
+Stopping `npm start`: one Ctrl+C sends SIGTERM and force-kills after 3s; a second Ctrl+C force-kills at once. The grace is short on purpose. Next's production SIGTERM handler closes the listener and then waits for every keep-alive connection to go idle, and cloudflared never lets them idle under crawler load, so the site is down while a process that will never exit keeps logging into the pane. If you ever see request lines printing over a shell prompt, that is an orphaned server: `pkill -KILL -f 'next-server \(v16'`.
+
 If `better-sqlite3` segfaults at startup, run `npm rebuild better-sqlite3` — the prebuilt native binary can go stale after Node/system updates.
 
 ## Data architecture
@@ -80,10 +82,11 @@ All databases live in [data/](data/) and are opened read-only (except `cache.db`
 | `openaire_citations.db` | BIP! impact indicators (`openaire_paper_impact`) + packed citation edges (`openaire_refs`, `openaire_cites`) |
 | `identity.db` | ORCID-derived career data — `author_identity`, `author_education`, `author_employment`, plus the `career_age_stats` / `phd_year_stats` / `mobility_flows` rollups behind Trends |
 | `pubmed.db` | PubMed article metadata — `paper_pubtypes` (~62M rows) driving study-design badges, plus `paper_grants`, `paper_databanks`, `article_dates` |
+| `grants.db` | Grant number → linked papers (`grant_papers`, one row per funder/key/paper with a source bitmask: 1 NIH ExPORTER link, 2 NSF link, 4 PubMed grant field, 8 OpenAIRE project) plus `grant_summary` (counts, OpenAIRE title/dates/amount). Built by `scripts/build_grants_db.py`; keys come from `lib/grant-id.ts` ⇄ `scripts/grant_id.py` |
 | `cache.db` | **Writable** — grant (NIH/NSF) and ORCID API response cache with TTL |
 | `analytics.db` | **Writable** — visitor logs and IP geolocation cache |
 
-Optional databases (`abstracts`, `papers_extra`, `mesh`, `retractions`, `openaire`, `openaire_abstracts`, `openaire_citations`, `identity`, `pubmed`) return `null` from their getters if missing — APIs should handle this gracefully.
+Optional databases (`abstracts`, `papers_extra`, `mesh`, `retractions`, `openaire`, `openaire_abstracts`, `openaire_citations`, `identity`, `pubmed`, `grants`) return `null` from their getters if missing — APIs should handle this gracefully.
 
 **Never `VACUUM` `openaire.db`.** Both `openaire_title_fts` and the citation edge
 keys reference `openaire_papers.rowid`, which a vacuum may renumber. The rowid
@@ -161,7 +164,8 @@ FTS query sanitization pattern (from [app/api/papers/search/route.ts](app/api/pa
 | Persons | `/persons/[authorid]` | `/api/persons/[authorid]` (+`/publications`, `/dois` CSV export) | `/api/persons/search` |
 | Journals | `/journals/[sourceid]`, `/journals/scopus/[scopusid]`, `/journals/top` | `/api/journals/[sourceid]` (+`/mesh`, `/publications`), `/api/journals/scopus/[scopusid]`, `/api/journals/top` | `/api/journals/search` |
 | Affiliations | `/affiliations/[institutionid]` | `/api/affiliations/[institutionid]` | `/api/affiliations/search` |
-| Funders | `/funders/[funderid]`, `/funders-map`, `/funders-map/[countryCode]` | `/api/funders/*`, `/api/grants` | `/api/funders/search` |
+| Funders | `/funders/[funderid]`, `/funders-map`, `/funders-map/[countryCode]` | `/api/funders/*`, `/api/grants` (metadata from RePORTER/NSF) | `/api/funders/search` |
+| Grants | `/grants`, `/grants/[funder]/[key]` (e.g. `/grants/nih/R56AG066215`) | `/api/grants/papers?funder&key&source=all\|reported\|acknowledged` | `/api/grants/lookup?q=` (resolves any spelling; NIH serials find every activity code) |
 | Fields | `/fields/[fieldid]` | `/api/fields`, `/api/fields/[fieldid]`, `/api/fields/hierarchy` | — |
 | Trials | `/trials/[nctid]` | `/api/trials/[nctid]` | `/api/trials/search` |
 | MeSH | `/mesh/[meshui]` | `/api/mesh/[meshui]` (+`/papers`) | — |
@@ -200,9 +204,11 @@ or sub-resource route belongs in the route.
 - [lib/api-utils.ts](lib/api-utils.ts) — `errorResponse`, `parsePagination`, `validateQueryLength`, `fetchWithTimeout`
 - [lib/analytics.ts](lib/analytics.ts) — `logVisitor`, `parseUserAgent`, `sanitizeString`
 - [lib/counts.ts](lib/counts.ts) — `ENTITY_COUNTS` constants
+- [lib/edge-challenge.ts](lib/edge-challenge.ts) — `apiFetch`, the fetch wrapper every search box and hub `PageClient` must use for `/api/` calls: it recovers from Cloudflare answering a fetch with `403 cf-mitigated: challenge` by reloading once (see [docs/SEO-RUNBOOK.md](docs/SEO-RUNBOOK.md) §3.7). Imports nothing
 - [lib/constants.ts](lib/constants.ts) — values shared by server and client (`EDGE_CAP`, `CITATION_PAGE_SIZE`, `BROWSE_PAGE_SIZE`). Imports nothing, so client components can use it
 - [lib/format.ts](lib/format.ts) — display helpers (`cleanDoi`, `getPatentUrl`, `formatPatentId`, `formatDocType`, `formatTrialStatus`, `getLanguageName`, `getRootUrl`)
 - [lib/fts.ts](lib/fts.ts) — `buildFtsQuery`, the single FTS5 query builder for every search route
+- [lib/grant-id.ts](lib/grant-id.ts) — `normalizeGrantId`, the grant-number normalizer (NIH core project number, NSF digits, EC code, alnum fallback), funder mapping, source bitmask helpers and `NIH_ACTIVITY_CODES`. Imports nothing. Mirrored by `scripts/grant_id.py`; both run against `lib/grant-id.vectors.json`
 - [lib/doi-csv.ts](lib/doi-csv.ts) — `buildDoiCsv`, the single-column DOI CSV behind `/api/persons/[authorid]/dois`
 - [lib/merge-citations.ts](lib/merge-citations.ts) — interleaves the SciSciNet and OpenAIRE citation streams for "Cited By"
 - [lib/scopus.ts](lib/scopus.ts) — Scopus API integration for journal enrichment
@@ -210,6 +216,9 @@ or sub-resource route belongs in the route.
 ## Middleware — [middleware.ts](middleware.ts)
 
 - Rate limits: 1000 req/min per IP globally, 120 req/min on search endpoints (in-memory, resets on restart)
+- Blocklist/allowlist from `data/blocklist.json` / `data/allowlist.json` ([lib/blocklist.ts](lib/blocklist.ts)), hot-reloaded within 30s
+- Browser-header consistency gate ([lib/bot-signals.ts](lib/bot-signals.ts)): a UA claiming modern Chrome/Firefox/Safari without `sec-fetch-mode` (or Chromium without `sec-ch-ua`) is logged as `[HEADER-GATE]`, or 403'd when `data/blocklist.json` has `"headerGate": "enforce"`. Keep it on `"log"`: Applebot, OAI-SearchBot and Reflectionbot trip it, so `"enforce"` blocks verified crawlers (the origin cannot see `cf.client.bot`). This is the only origin-side control that sees a rotating-IP scraper; the primary control is the Cloudflare WAF challenge rule in [docs/SEO-RUNBOOK.md](docs/SEO-RUNBOOK.md) §3.7
+- Load shedding ([lib/load-shed.ts](lib/load-shed.ts)): 503 + `Retry-After` when the worst event-loop lag sample in a 5 s window exceeds `LOAD_SHED_LAG_MS` (default 250 ms, `0` disables), logged as `[SHED]` / `[SHED-CRAWLER]`
 - Detects suspicious input (SQLi, XSS, path traversal patterns)
 - Logs visitor metadata for analytics
 - Sets security headers (also configured in [next.config.ts](next.config.ts): CSP, HSTS, X-Frame-Options, etc.)
@@ -235,6 +244,8 @@ Import/preprocessing scripts are mostly Python and run against the SQLite databa
 - `export_trials_to_sqlite.py` — ClinicalTrials.gov import
 - `create_fts_index.py`, `add_person_fts.py` — FTS5 index builders
 - `compute_self_citations.py`, `create_citation_history.py` — derived metrics
+- `build_grants_db.py` — builds `data/grants.db` from the NIH/NSF link parquets, `pubmed.db.paper_grants` (via `mesh.db.paperid_pmid`) and `openaire.db.paper_projects`/`projects`; frugal DuckDB (4 GB, 2 threads), run with `nice`/`ionice`. Gate it on `python3 scripts/test_grant_id.py`
+- `field_rollups.py` — the per-field top papers/authors tables behind `/fields/[fieldid]` (`field_top_cited_papers_level{0,1}`, `field_top_papers`, `field_top_authors`); frugal DuckDB add-on, run with `nice`/`ionice`
 - `start-with-cache.sh` — production start wrapper
 
 ## Conventions

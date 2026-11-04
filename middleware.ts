@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getBlockReason, isAllowlisted, subnetKey } from "@/lib/blocklist";
+import { getBlockReason, getHeaderGateMode, isAllowlisted, subnetKey } from "@/lib/blocklist";
+import { getHeaderMismatch } from "@/lib/bot-signals";
+import { currentLagMs, lagBudgetMs, shouldShed } from "@/lib/load-shed";
 
 // ANSI color codes for console output
 const RED = "\x1b[31m";
@@ -41,6 +43,16 @@ const CRAWLER_UA =
 
 /** Log one in N crawler requests, so a large crawl can't flood the log. */
 const CRAWLER_LOG_SAMPLE = 50;
+/** Log one in N shed requests: shedding only happens during a flood. */
+const SHED_LOG_SAMPLE = 50;
+/**
+ * Log one in N header-gate hits in "log" mode. Denser than the other samples
+ * because this is the observation phase whose output decides whether to
+ * switch to "enforce"; in "enforce" mode every 403 is logged like a block.
+ */
+const HEADER_GATE_LOG_SAMPLE = 20;
+let shedCounter = 0;
+let headerGateCounter = 0;
 
 // Track suspicious patterns
 const suspiciousPatterns = [
@@ -80,6 +92,16 @@ function overLimit(
 
   bucket.count++;
   return { exceeded: bucket.count > limit, count: bucket.count, windowStart: bucket.windowStart };
+}
+
+function serviceUnavailable(): NextResponse {
+  // Same wording lib/api-utils.ts uses for a busy database. Retry-After is
+  // advisory; Googlebot treats a 503 as "temporarily overloaded" and slows
+  // down, which is exactly the signal wanted here.
+  return new NextResponse('Service temporarily unavailable', {
+    status: 503,
+    headers: { 'Retry-After': '30' },
+  });
 }
 
 function tooManyRequests(limit: number, windowStart: number): NextResponse {
@@ -145,6 +167,33 @@ export function middleware(request: NextRequest) {
     return new NextResponse('Bad Request', { status: 400 });
   }
 
+  // Browser-header consistency gate. Catches the 2026-10-28 shape of attack
+  // — a residential-proxy pool where no IP is ever reused, so nothing keyed on
+  // the address can see it, but every request wears a desktop-browser
+  // User-Agent without the headers a real browser cannot omit. Mode comes
+  // from data/blocklist.json so it can go from "log" to "enforce" without a
+  // restart. Verified crawlers are exempt; they don't claim to be Chrome, but
+  // the exemption makes the SEO guarantee explicit rather than incidental.
+  if (!isCrawler) {
+    const gateMode = getHeaderGateMode();
+    if (gateMode !== 'off') {
+      const mismatch = getHeaderMismatch(userAgent, request.headers);
+      if (mismatch) {
+        if (gateMode === 'enforce') {
+          console.error(`${RED}[${timestamp}] [HEADER-GATE] [403] [${country}] ${ip} -> ${pathname} (${mismatch})${RESET}`);
+          console.error(`${RED}  User-Agent: ${userAgent}${RESET}`);
+          // Same generic body as the blocklist: don't reveal the rule.
+          return new NextResponse('Forbidden', { status: 403 });
+        }
+        headerGateCounter++;
+        if (headerGateCounter % HEADER_GATE_LOG_SAMPLE === 0) {
+          console.error(`${YELLOW}[${timestamp}] [HEADER-GATE] [log] [${country}] ${ip} -> ${pathname} (${mismatch}; ${headerGateCounter} so far)${RESET}`);
+          console.error(`${YELLOW}  User-Agent: ${userAgent}${RESET}`);
+        }
+      }
+    }
+  }
+
   // Rate limiting check
   const isSearchEndpoint = pathname.includes('/api/') && pathname.includes('/search');
   let rateLimit: number;
@@ -186,6 +235,23 @@ export function middleware(request: NextRequest) {
       console.error(`${RED}  User-Agent: ${userAgent}${RESET}`);
       return tooManyRequests(subnetLimit, perSubnet.windowStart);
     }
+  }
+
+  // Load shedding. Once the event loop is measurably behind, a cheap 503 here
+  // beats letting the request queue behind hundreds of others until the
+  // tunnel resets the socket (which Cloudflare reports as a 502 and which has
+  // already cost a render's worth of waiting). Applies to crawlers too: a 503
+  // is the documented "overloaded, retry later" signal and strictly better
+  // than a reset, but it is tagged separately so a sustained run of them is
+  // greppable, like RATE-LIMIT-CRAWLER. The cache-warm endpoint is exempt
+  // because warming is what makes the loop busy right after startup.
+  if (!pathname.startsWith('/api/cache/') && shouldShed()) {
+    shedCounter++;
+    if (isCrawler || shedCounter % SHED_LOG_SAMPLE === 0) {
+      const tag = isCrawler ? 'SHED-CRAWLER' : 'SHED';
+      console.error(`${YELLOW}[${timestamp}] [${tag}] [${country}] ${ip} -> ${pathname} (event-loop max ${currentLagMs().toFixed(0)}ms > ${lagBudgetMs()}ms; ${shedCounter} shed)${RESET}`);
+    }
+    return serviceUnavailable();
   }
 
   // Clean up old entries every 1000 requests

@@ -13,28 +13,56 @@ PORT=${PORT:-3000}
 # Running the server under `setsid` makes it a process-group leader, so
 # `kill -- -$SERVER_PID` reaches the whole tree including next-server and its
 # SQLite worker threads.
+#
+# WHY the short grace period and the second-Ctrl+C escalation (2026-10-29): on
+# SIGTERM, Next's production handler calls `server.close()` and waits for every
+# keep-alive connection to go idle before exiting; only the dev server calls
+# `closeAllConnections()` (node_modules/next/dist/server/lib/start-server.js).
+# cloudflared holds a pool of keep-alive connections to the origin and keeps
+# feeding crawler traffic down them, so under any real load that wait never
+# ends: the listener is already closed (the site is DOWN), the process keeps
+# serving on the old sockets and logging into the pane, and the drain is
+# pointless. The 2026-10-28 instance sat in that state for 13 hours after a
+# second Ctrl+C killed this script -- the previous version disarmed its traps
+# first, so the second Ctrl+C aborted cleanup before the SIGKILL fallback ran,
+# and the setsid'd server never saw the terminal's signal at all. Now a second
+# Ctrl+C force-kills immediately, and the grace is 3s because nothing useful
+# happens during it (journals.db is read-only; cache.db/analytics.db are WAL).
 cleanup() {
-  # Disarm first: a second Ctrl+C during shutdown must not re-enter this.
-  trap - SIGINT SIGTERM EXIT
   echo ""
-  echo "Shutting down server..."
+  echo "Shutting down server... (press Ctrl+C again to force-kill)"
+  # A second Ctrl+C or a TERM during shutdown must escalate, not abort.
+  trap 'force_kill' SIGINT SIGTERM
+  trap - EXIT
   # Stop an in-flight cache warm first so it can't keep issuing requests.
   if [ -n "${PROBE_PID:-}" ]; then kill -TERM "$PROBE_PID" 2>/dev/null; fi
   if [ -n "${WARM_PID:-}" ]; then kill -TERM "$WARM_PID" 2>/dev/null; fi
   if [ -n "${SERVER_PID:-}" ] && kill -0 "$SERVER_PID" 2>/dev/null; then
     kill -TERM -- -"$SERVER_PID" 2>/dev/null || kill -TERM "$SERVER_PID" 2>/dev/null
-    # Give it up to 10s to close listeners and flush; then stop being polite.
-    for _ in $(seq 1 20); do
+    # Give it 3s to flush; under load the keep-alive drain never finishes, so
+    # do not wait longer -- the listener is already closed at this point.
+    for _ in $(seq 1 6); do
       kill -0 "$SERVER_PID" 2>/dev/null || break
       sleep 0.5
     done
     if kill -0 "$SERVER_PID" 2>/dev/null; then
-      echo "Server did not exit within 10s; sending SIGKILL."
+      echo "Server still draining keep-alive connections after 3s; sending SIGKILL."
       kill -KILL -- -"$SERVER_PID" 2>/dev/null || kill -KILL "$SERVER_PID" 2>/dev/null
     fi
   fi
   echo "Server stopped."
   exit 0
+}
+
+force_kill() {
+  trap - SIGINT SIGTERM EXIT
+  echo ""
+  echo "Force-killing server..."
+  if [ -n "${SERVER_PID:-}" ]; then
+    kill -KILL -- -"$SERVER_PID" 2>/dev/null || kill -KILL "$SERVER_PID" 2>/dev/null
+  fi
+  echo "Server killed."
+  exit 130
 }
 
 # Trap SIGINT (Ctrl+C) and SIGTERM

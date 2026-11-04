@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/edge-challenge";
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { NetMobilityChart, TopFlowsChart } from "@/components/trends/MobilityChart";
@@ -96,9 +97,9 @@ export default function TrendsPageClient() {
     let cancelled = false;
     (async () => {
       const [mRes, cRes, dRes] = await Promise.all([
-        fetch("/api/trends/mobility").catch(() => null),
-        fetch("/api/trends/career-age").catch(() => null),
-        fetch("/api/trends/study-designs").catch(() => null),
+        apiFetch("/api/trends/mobility").catch(() => null),
+        apiFetch("/api/trends/career-age").catch(() => null),
+        apiFetch("/api/trends/study-designs").catch(() => null),
       ]);
       if (mRes?.ok) {
         try {

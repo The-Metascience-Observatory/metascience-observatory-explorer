@@ -5,8 +5,9 @@ import { PersonSearch } from "@/components/PersonSearch";
 import { AffiliationSearch } from "@/components/AffiliationSearch";
 import { FunderSearch } from "@/components/FunderSearch";
 import { TrialSearch } from "@/components/TrialSearch";
+import { GrantSearch } from "@/components/GrantSearch";
 import { PaperSearch } from "@/components/PaperSearch";
-import { BookOpen, User, Building2, Banknote, FlaskConical, FileText } from "lucide-react";
+import { BookOpen, User, Building2, Banknote, FlaskConical, FileText, Landmark } from "lucide-react";
 import Link from "next/link";
 
 export default function HomePage() {
@@ -69,6 +70,15 @@ export default function HomePage() {
             <h2 className="text-lg font-semibold">Clinical Trials</h2>
           </div>
           <TrialSearch compact />
+        </div>
+
+        {/* Grants */}
+        <div className="max-w-[78%] mx-auto w-full space-y-2">
+          <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+            <Landmark className="h-5 w-5" />
+            <h2 className="text-lg font-semibold">Grants</h2>
+          </div>
+          <GrantSearch compact />
         </div>
       </div>
 

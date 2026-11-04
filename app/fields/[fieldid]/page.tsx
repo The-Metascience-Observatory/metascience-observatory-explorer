@@ -166,7 +166,7 @@ export default async function FieldDetailPage({ params }: Props) {
               <p className="text-sm text-gray-500">
                 No field-normalized citation data available.
                 {topPapers.length === 0 &&
-                  " Run preprocessing with normalized_citations parquet files."}
+                  " Run scripts/field_rollups.py to build the per-field tables."}
               </p>
             ) : (
               <div className="space-y-3 max-h-[600px] overflow-y-auto">

@@ -179,7 +179,7 @@ function buildSources(dbs) {
 
   const staticPaths = [
     "/", "/about", "/papers", "/persons", "/journals", "/journals/top",
-    "/affiliations", "/funders", "/funders-map", "/fields", "/trials",
+    "/affiliations", "/funders", "/funders-map", "/grants", "/fields", "/trials",
     "/retractions", "/retractions/search",
   ];
   sources.push({

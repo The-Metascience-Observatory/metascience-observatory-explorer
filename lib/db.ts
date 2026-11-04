@@ -11,6 +11,7 @@ let meshDb: Database.Database | null = null;
 let openaireDb: Database.Database | null = null;
 let openaireAbstractsDb: Database.Database | null = null;
 let openaireCitationsDb: Database.Database | null = null;
+let grantsDb: Database.Database | null = null;
 
 /**
  * True while `next build` is running.
@@ -252,6 +253,27 @@ export function getOpenaireCitationsDb(): Database.Database | null {
     }
   }
   return openaireCitationsDb;
+}
+
+// Get grants database (grant number -> linked papers + per-grant summary).
+//
+// Built by scripts/build_grants_db.py from the NIH/NSF link files, PubMed's
+// grant field and OpenAIRE project links. Every read is a WITHOUT ROWID PK
+// seek or a bounded index range walk, so it stays on the main thread like
+// openaire_citations.db; resolving the resulting paper ids to titles must go
+// through the worker pools (see lib/queries/grants.ts).
+export function getGrantsDb(): Database.Database | null {
+  if (grantsDb === null) {
+    try {
+      const dbPath = path.join(process.cwd(), "data", "grants.db");
+      grantsDb = new Database(dbPath, { readonly: true, fileMustExist: true });
+    } catch {
+      // grants.db may not exist - return null. Retries the open on every call
+      // while absent, so the DB goes live without a restart once built.
+      return null;
+    }
+  }
+  return grantsDb;
 }
 
 // Helper to check if database exists and is accessible.
